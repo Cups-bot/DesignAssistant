@@ -270,6 +270,7 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Направление"  Style="{StaticResource Lbl}"/>
@@ -290,6 +291,8 @@
                         <TextBlock Grid.Row="7" Grid.Column="1" x:Name="ValCoating" Style="{StaticResource Val}"/>
                         <TextBlock Grid.Row="8" Grid.Column="0" Text="Страна"       Style="{StaticResource Lbl}"/>
                         <TextBlock Grid.Row="8" Grid.Column="1" x:Name="ValCountry" Style="{StaticResource Val}"/>
+                        <TextBlock Grid.Row="9" Grid.Column="0" Text="Вкус / вид"   Style="{StaticResource Lbl}"/>
+                        <TextBlock Grid.Row="9" Grid.Column="1" x:Name="ValVariant" Style="{StaticResource Val}"/>
                     </Grid>
 
                     <Border x:Name="WarnPanel" Visibility="Collapsed" Margin="0,12,0,0"

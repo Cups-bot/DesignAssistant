@@ -65,7 +65,10 @@ namespace CupsForge
         private async Task FetchAsync()
         {
             _resolved = null;
-            BuildButton.IsEnabled = false;
+            // В ручном режиме кнопка живёт своей жизнью: гасить её из-за загрузки
+            // заказа нельзя, иначе случайный Enter в поле ссылки блокирует ручной ввод.
+            if (!_manualMode)
+                BuildButton.IsEnabled = false;
             SpecPanel.Visibility = Visibility.Collapsed;
             WarnPanel.Visibility = Visibility.Collapsed;
 
@@ -78,7 +81,7 @@ namespace CupsForge
             string auth = _config.Bitrix.ResolveAuthHeader();
             if (string.IsNullOrEmpty(auth))
             {
-                Log("Не задана авторизация. Укажите Login/Password или AuthorizationHeader в appsettings.json.");
+                Log("Не задан доступ к Bitrix. Откройте настройки и укажите логин и пароль.");
                 return;
             }
 
@@ -95,8 +98,13 @@ namespace CupsForge
                 _resolved = resolved;
 
                 ShowSpec(resolved);
-                BuildButton.IsEnabled = !string.IsNullOrWhiteSpace(resolved.ProductArticul)
-                                        && !string.IsNullOrWhiteSpace(resolved.DesignCode);
+
+                // Артикул обязателен не всегда: у шоколада шаблон выбирается по вкусу,
+                // и пустой артикул — норма. Спрашиваем у каталога, а не гадаем.
+                bool needsArticle = CatalogService.Current.Match(resolved.ToBuildRequest().Spec)
+                                        is not { Variants.Count: > 0 };
+                BuildButton.IsEnabled = !string.IsNullOrWhiteSpace(resolved.DesignCode)
+                                        && (!needsArticle || !string.IsNullOrWhiteSpace(resolved.ProductArticul));
                 Log($"Данные получены: {resolved.Brand} · {resolved.ProductArticul}. Проверьте и нажмите «Создать проект».");
             }
             catch (BitrixException bex)
@@ -123,6 +131,11 @@ namespace CupsForge
             ValPrint.Text    = $"{r.RawPrint}  →  {r.PrintTech}";
             ValMaterial.Text = $"{r.RawSide}  →  {r.Material}";
             ValCoating.Text  = string.IsNullOrWhiteSpace(r.RawCoating) ? "—" : $"{r.RawCoating}  →  {r.Coating}";
+            // Вкус показывается там, где он есть: сверять его глазами тоже нужно.
+            ValVariant.Text  = string.IsNullOrWhiteSpace(r.Variant)
+                ? "—"
+                : (string.IsNullOrWhiteSpace(r.RawFlavor) ? r.Variant : $"{r.RawFlavor}  →  {r.Variant}");
+
             ValCountry.Text  = r.Brand == Brand.CuptoYou
                 ? (string.IsNullOrWhiteSpace(r.RawLang) ? r.Country.ToString() : $"{r.RawLang}  →  {r.Country}")
                 : "—";

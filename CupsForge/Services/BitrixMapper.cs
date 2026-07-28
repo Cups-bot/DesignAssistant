@@ -68,7 +68,8 @@ namespace CupsForge.Services
                 RawPrint = d.Print ?? "",
                 RawSide = d.Side ?? "",
                 RawCoating = d.Coating ?? "",
-                RawLang = d.Lang ?? ""
+                RawLang = d.Lang ?? "",
+                RawFlavor = d.Flavor ?? ""
             };
             resolved.Warnings.AddRange(warnings);
 

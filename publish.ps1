@@ -43,6 +43,21 @@ Copy-Item (Join-Path $staging 'CupsForge.exe') $target -Force
 # и должен ехать к удалённым дизайнерам вместе с ними.
 Write-Host "Выложено: $target"
 
+# Установщик — рядом с раздачей, чтобы дизайнер запускал его прямо с сетевого диска.
+Copy-Item (Join-Path $root 'install.cmd') $Destination -Force
+Copy-Item (Join-Path $root 'install.ps1') $Destination -Force
+Write-Host "Установщик обновлён: $Destination\install.cmd"
+
+# Рабочий appsettings.json в репозиторий не входит. Если он есть рядом с проектом,
+# кладём его к версии — тогда установщик перенесёт доступ к Bitrix на новую машину.
+$settings = Join-Path $root 'CupsForgeppsettings.json'
+if (Test-Path $settings) {
+    Copy-Item $settings $target -Force
+    Write-Host 'Настройки доступа к Bitrix приложены к версии.'
+} else {
+    Write-Host 'ВНИМАНИЕ: appsettings.json не найден — доступ к Bitrix дизайнер введёт в настройках.' -ForegroundColor Yellow
+}
+
 # --- Указатель на свежую версию ---
 $latest = [ordered] @{ version = $version; folder = $version; notes = $Notes }
 $latestPath = Join-Path $Destination 'latest.json'

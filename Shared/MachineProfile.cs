@@ -181,15 +181,32 @@ namespace CupsCore
                 if (loaded == null)
                     return CreateOfficeDefault();
 
-                loaded.FillMissingRootsFrom(CreateOfficeDefault());
+                loaded.FillMissingRoots();
                 return loaded;
             }
-            catch
+            catch (Exception ex)
             {
-                // Битый профиль не должен мешать работать — откатываемся на офисный.
+                // Битый профиль не должен мешать работать. Но и молча подменять его
+                // офисными путями нельзя: человек увидит чужие Y:\ и не поймёт, откуда.
+                // Сохраняем копию и оставляем след.
+                LoadProblem = $"Профиль повреждён ({ex.Message}). Подставлены стандартные пути.";
+                try
+                {
+                    string backup = FilePath + ".broken";
+                    File.Copy(FilePath, backup, overwrite: true);
+                    LoadProblem += $" Копия прежнего файла: {backup}";
+                }
+                catch { /* не смогли сохранить копию — не повод падать */ }
+
                 return CreateOfficeDefault();
             }
         }
+
+        /// <summary>
+        /// Чем закончилась последняя загрузка, если что-то пошло не так.
+        /// null — профиль прочитан нормально.
+        /// </summary>
+        public static string? LoadProblem { get; private set; }
 
         /// <summary>
         /// Независимая копия — окно настроек правит её, и «Отмена» ничего не ломает.
@@ -217,6 +234,11 @@ namespace CupsCore
             return copy;
         }
 
+        /// <summary>
+        /// Сохраняет профиль. Пишем во временный файл и подменяем готовый:
+        /// оборванная посреди записи запись оставила бы обрезанный JSON,
+        /// а это потеря всех настроек рабочего места.
+        /// </summary>
         public void Save()
         {
             Directory.CreateDirectory(DirectoryPath);
@@ -225,7 +247,14 @@ namespace CupsCore
                 WriteIndented = true,
                 Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
             };
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(this, opts));
+
+            string temp = FilePath + ".tmp";
+            File.WriteAllText(temp, JsonSerializer.Serialize(this, opts));
+
+            if (File.Exists(FilePath))
+                File.Replace(temp, FilePath, destinationBackupFileName: null);
+            else
+                File.Move(temp, FilePath);
         }
 
         // ---------- конструирование ----------
@@ -252,14 +281,44 @@ namespace CupsCore
                 Roots[key] = Path.Combine(stakanyRoot, Root.RelativeToStakany(key));
         }
 
-        private void FillMissingRootsFrom(MachineProfile fallback)
+        /// <summary>
+        /// Достраивает недостающие корни от базовой папки ЭТОГО профиля.
+        /// Раньше они подставлялись офисными — и на домашней машине в профиле
+        /// внезапно появлялись пути к сетевому диску, которого там нет.
+        /// </summary>
+        public void FillMissingRoots()
         {
             Roots ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            string baseFolder = Roots.TryGetValue(Root.Base, out string? b) && !string.IsNullOrWhiteSpace(b)
+                ? b
+                : GuessBaseFromRoots() ?? OfficeStakanyRoot;
+
             foreach (string key in Root.AllIncludingBase)
             {
                 if (!Roots.TryGetValue(key, out string? value) || string.IsNullOrWhiteSpace(value))
-                    Roots[key] = fallback.Roots[key];
+                    Roots[key] = Path.Combine(baseFolder, Root.RelativeToStakany(key));
             }
+        }
+
+        /// <summary>Базовая папка по любому заполненному корню, если сам base потерялся.</summary>
+        private string? GuessBaseFromRoots()
+        {
+            foreach (string key in Root.All)
+            {
+                if (!Roots.TryGetValue(key, out string? value) || string.IsNullOrWhiteSpace(value))
+                    continue;
+
+                string relative = Root.RelativeToStakany(key);
+                if (string.IsNullOrEmpty(relative))
+                    continue;
+
+                // Корень заканчивается своим относительным путём — отрезаем его.
+                string trimmed = value.TrimEnd('\\', '/');
+                if (trimmed.EndsWith(relative, StringComparison.OrdinalIgnoreCase))
+                    return trimmed[..^relative.Length].TrimEnd('\\', '/');
+            }
+            return null;
         }
 
         // ---------- проверка ----------
@@ -271,7 +330,9 @@ namespace CupsCore
         public List<string> FindMissingRoots()
         {
             var missing = new List<string>();
-            foreach (string key in Root.All)
+            // Базовая папка тоже проверяется: на неё ссылается каталог ("{base}/Lids"),
+            // и её отсутствие ломает продукты со своей папкой вывода.
+            foreach (string key in Root.AllIncludingBase)
             {
                 string path = Roots.TryGetValue(key, out string? v) ? v : "";
                 if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))

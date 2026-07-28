@@ -37,16 +37,27 @@ namespace CupsCore
         /// <returns>true — можно работать дальше.</returns>
         public static bool EnsureConfigured(Window owner)
         {
-            if (MachineProfile.ExistsOnDisk)
-                return true;
-
-            if (MachineProfile.Current.FindMissingRoots().Count == 0)
+            // Решает наличие рабочих папок, а не наличие файла профиля.
+            // Раньше сохранённый профиль отключал мастер навсегда: сменилась буква
+            // диска — и вернуться к настройке было уже неоткуда.
+            var missing = MachineProfile.Current.FindMissingRoots();
+            if (missing.Count == 0 && MachineProfile.LoadProblem == null)
                 return true;
 
             var window = new SettingsWindow { Owner = owner };
-            window.ShowMessage(
-                "Похоже, это первый запуск на новой машине: рабочих папок по стандартным путям нет. " +
-                "Укажите, где они лежат здесь.");
+
+            if (MachineProfile.LoadProblem != null)
+                window.ShowMessage(MachineProfile.LoadProblem + " Проверьте папки.");
+            else if (MachineProfile.ExistsOnDisk)
+                window.ShowMessage(
+                    "Не найдены рабочие папки: " +
+                    string.Join(", ", missing.Select(MachineProfile.Root.Title)) +
+                    ". Возможно, изменилась буква диска или папку перенесли.");
+            else
+                window.ShowMessage(
+                    "Похоже, это первый запуск на новой машине: рабочих папок по стандартным путям нет. " +
+                    "Укажите, где они лежат здесь.");
+
             return window.ShowDialog() == true;
         }
 
@@ -60,6 +71,7 @@ namespace CupsCore
             LoadRoots();
             LoadIllustrator();
             LoadCatalogInfo();
+            LoadBitrix();
 
             OfficeRadio.IsChecked = !IsRemote(_draft.Mode);
             RemoteRadio.IsChecked = IsRemote(_draft.Mode);
@@ -163,12 +175,33 @@ namespace CupsCore
             }
         }
 
+        /// <summary>
+        /// Доступ к Bitrix. Хранится в профиле рабочего места, а не рядом с программой:
+        /// раньше он лежал в appsettings.json, который попадал в репозиторий, и до новой
+        /// машины не доезжал вовсе — вводить его было негде.
+        /// </summary>
+        private void LoadBitrix()
+        {
+            BitrixLoginBox.Text = _draft.Bitrix.Login;
+            BitrixPasswordBox.Password = _draft.Bitrix.Password;
+
+            bool hasReadyHeader = string.IsNullOrWhiteSpace(_draft.Bitrix.Login)
+                                  && !string.IsNullOrWhiteSpace(_draft.Bitrix.AuthorizationHeader);
+
+            BitrixHint.Text = hasReadyHeader
+                ? "Сейчас используется готовый заголовок авторизации. Заполните логин и пароль, " +
+                  "чтобы заменить его — так понятнее и проще менять."
+                : "Нужен только для загрузки заказа по ссылке. Ручной ввод работает и без него. " +
+                  "Хранится на этой машине и в репозиторий не попадает.";
+        }
+
         // ---------- действия ----------
 
         private void ReloadCatalog_Click(object sender, RoutedEventArgs e)
         {
             CatalogService.Reload();
             LoadCatalogInfo();
+            LoadBitrix();
             ShowMessage("Каталог перечитан.", ok: true);
         }
 
@@ -351,6 +384,13 @@ namespace CupsCore
             string baseFolder = BaseBox.Text.Trim();
             if (!string.IsNullOrWhiteSpace(baseFolder))
                 _draft.Roots[MachineProfile.Root.Base] = baseFolder;
+
+            // Логин с паролем важнее готового заголовка: если их ввели, header убираем,
+            // иначе он продолжил бы побеждать и правка не дала бы эффекта.
+            _draft.Bitrix.Login = BitrixLoginBox.Text.Trim();
+            _draft.Bitrix.Password = BitrixPasswordBox.Password;
+            if (!string.IsNullOrWhiteSpace(_draft.Bitrix.Login))
+                _draft.Bitrix.AuthorizationHeader = "";
 
             _draft.Mode = RemoteRadio.IsChecked == true ? "remote" : "office";
             _draft.IllustratorExe = (IllustratorCombo.SelectedItem as IllustratorChoice)?.Value

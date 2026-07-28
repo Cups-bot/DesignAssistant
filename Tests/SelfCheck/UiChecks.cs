@@ -28,7 +28,13 @@ public static class UiChecks
         string sandbox = Path.Combine(Path.GetTempPath(), "cupsforge_selfcheck_ui", "STAKANY");
         var profile = MachineProfile.FromStakanyRoot(sandbox);
         profile.IllustratorExe = Path.Combine(sandbox, "no-illustrator.exe");
-        Directory.CreateDirectory(Path.Combine(sandbox, "_Templates"));
+
+        // Создаём ВСЕ рабочие папки: иначе окно при запуске покажет мастер настройки
+        // модально, и прогон повиснет — закрыть его в тесте некому.
+        // Это же и проверка того, что при полном комплекте папок мастер не лезет.
+        foreach (string key in MachineProfile.Root.AllIncludingBase)
+            Directory.CreateDirectory(profile.Roots[key]);
+
         MachineProfile.Set(profile);
         Paths.ResetIllustratorCache();
         CatalogService.Reload();

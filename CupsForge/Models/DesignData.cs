@@ -79,6 +79,7 @@ namespace CupsForge.Models
         public string RawSide { get; init; } = "";
         public string RawCoating { get; init; } = "";
         public string RawLang { get; init; } = "";
+        public string RawFlavor { get; init; } = "";
 
         // Предупреждения маппинга (нераспознанные значения и т.п.).
         public List<string> Warnings { get; } = new();

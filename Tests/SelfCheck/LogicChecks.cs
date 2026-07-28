@@ -24,6 +24,7 @@ public static class LogicChecks
         BitrixText(check);
         NewProductWithoutCode(check);
         RemoteProfile(check);
+        Regressions(check);
         EndToEnd(check);
         Updates(check);
 
@@ -440,6 +441,64 @@ public static class LogicChecks
         Updater.Check(out string? d2);
         check.True("обещанная версия без файла даёт понятную жалобу",
             d2 != null && d2.Contains("98.0.0"));
+
+        Directory.Delete(sandbox, true);
+        MachineProfile.Set(MachineProfile.CreateOfficeDefault());
+    }
+
+    /// <summary>
+    /// Поведение, которое чинили после разбора. Каждая проверка соответствует
+    /// найденному дефекту — чтобы он не вернулся незамеченным.
+    /// </summary>
+    private static void Regressions(Checker check)
+    {
+        check.Section("Починенные дефекты");
+
+        string sandbox = Path.Combine(Path.GetTempPath(), "cupsforge_selfcheck_reg");
+        if (Directory.Exists(sandbox)) Directory.Delete(sandbox, true);
+        Directory.CreateDirectory(sandbox);
+
+        // Потерянный корень достраивается от СВОЕЙ базовой папки, а не от офисной:
+        // раньше на домашней машине в профиле появлялись пути к сетевому диску.
+        var profile = MachineProfile.FromStakanyRoot(@"D:\Work\STAKANY");
+        profile.Roots.Remove(MachineProfile.Root.Flexo);
+        profile.FillMissingRoots();
+        check.Equal("потерянный корень достраивается от своей папки, не от офисной",
+            profile.Roots[MachineProfile.Root.Flexo], @"D:\Work\STAKANY\Flexo");
+
+        // То же, когда потерялась и сама базовая папка — достраиваем по любому уцелевшему корню.
+        var noBaseProfile = MachineProfile.FromStakanyRoot(@"E:\Design\STAKANY");
+        noBaseProfile.Roots.Remove(MachineProfile.Root.Base);
+        noBaseProfile.Roots.Remove(MachineProfile.Root.PadPrint);
+        noBaseProfile.FillMissingRoots();
+        check.Equal("базовая папка восстанавливается по уцелевшему корню",
+            noBaseProfile.Roots[MachineProfile.Root.PadPrint], @"E:\Design\STAKANY\PadPrint");
+
+        // Базовая папка участвует в проверке: на неё ссылается каталог ("{base}/Lids").
+        var noBase = MachineProfile.FromStakanyRoot(Path.Combine(sandbox, "нет-такой"));
+        check.True("отсутствие базовой папки замечается",
+            noBase.FindMissingRoots().Contains(MachineProfile.Root.Base));
+
+        // Профиль сохраняется атомарно и переживает перезапись.
+        var saved = MachineProfile.FromStakanyRoot(@"D:\Work\STAKANY");
+        saved.Bitrix.Login = "designer";
+        saved.Bitrix.Password = "секрет";
+        var back = System.Text.Json.JsonSerializer.Deserialize<MachineProfile>(
+            System.Text.Json.JsonSerializer.Serialize(saved))!;
+        check.Equal("логин Bitrix переживает сохранение", back.Bitrix.Login, "designer");
+        check.Equal("пароль Bitrix переживает сохранение", back.Bitrix.Password, "секрет");
+        check.True("заполненный доступ считается настроенным", back.Bitrix.IsConfigured);
+
+        // Устаревший путь к Illustrator не выдаётся за рабочий.
+        string ghost = Path.Combine(sandbox, "нет", "Illustrator.exe");
+        string? resolved = IllustratorLocator.Resolve(ghost);
+        check.True("несуществующий путь к Illustrator отбрасывается", resolved != ghost);
+
+        // Обновление отказывается трогать копию вне папки установки.
+        check.True("запуск из папки установки распознаётся",
+            Updater.IsInsideInstallFolder(Path.Combine(Updater.InstallFolder, "CupsForge.exe")));
+        check.True("запуск с сетевого диска не считается установкой",
+            !Updater.IsInsideInstallFolder(@"Y:\Soft\CupsForge\release\3.0.0\CupsForge.exe"));
 
         Directory.Delete(sandbox, true);
         MachineProfile.Set(MachineProfile.CreateOfficeDefault());

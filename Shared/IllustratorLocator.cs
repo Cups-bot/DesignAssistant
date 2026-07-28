@@ -67,7 +67,14 @@ namespace CupsCore
             {
                 return FindBest();
             }
-            return configured;
+
+            // Прописанный вручную путь мог устареть: Illustrator обновили, папка
+            // сменилась. Тогда честнее сказать «не найден» и предложить настройки,
+            // чем отдать мёртвый путь и получить невнятную ошибку запуска.
+            if (File.Exists(configured))
+                return configured;
+
+            return FindBest();
         }
 
         // ---------- источники ----------

@@ -104,6 +104,22 @@ namespace CupsCore
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "CupsForge");
 
+        /// <summary>Лежит ли запущенный файл внутри папки установки.</summary>
+        public static bool IsInsideInstallFolder(string exePath)
+        {
+            try
+            {
+                string install = Path.GetFullPath(InstallFolder)
+                    .TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                return Path.GetFullPath(exePath)
+                    .StartsWith(install, StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         /// <summary>
         /// Скачивает новую версию рядом и передаёт замену маленькому скрипту:
         /// сам себя работающий файл переписать не может. Скрипт ждёт выхода
@@ -125,6 +141,18 @@ namespace CupsCore
                 if (string.IsNullOrEmpty(current))
                 {
                     error = "Не удалось определить путь к запущенной программе.";
+                    return false;
+                }
+
+                // Обновлять имеет смысл только свою локальную копию. Если программу
+                // запустили прямо с сетевого диска, подмена файла испортила бы раздачу
+                // для всех остальных — и, скорее всего, просто не удалась бы.
+                if (!IsInsideInstallFolder(current))
+                {
+                    error = "Программа запущена не из своей папки, обновление отменено.\n" +
+                            $"Запущено: {current}\n" +
+                            $"Ожидалось внутри: {InstallFolder}\n" +
+                            "Скопируйте программу в эту папку и запускайте оттуда.";
                     return false;
                 }
 

@@ -50,7 +50,7 @@ Write-Host "Установщик обновлён: $Destination\install.cmd"
 
 # Рабочий appsettings.json в репозиторий не входит. Если он есть рядом с проектом,
 # кладём его к версии — тогда установщик перенесёт доступ к Bitrix на новую машину.
-$settings = Join-Path $root 'CupsForgeppsettings.json'
+$settings = Join-Path $root 'CupsForge\appsettings.json'
 if (Test-Path $settings) {
     Copy-Item $settings $target -Force
     Write-Host 'Настройки доступа к Bitrix приложены к версии.'
@@ -61,7 +61,10 @@ if (Test-Path $settings) {
 # --- Указатель на свежую версию ---
 $latest = [ordered] @{ version = $version; folder = $version; notes = $Notes }
 $latestPath = Join-Path $Destination 'latest.json'
-$latest | ConvertTo-Json | Out-File $latestPath -Encoding utf8
+# Out-File -Encoding utf8 в Windows PowerShell дописывает BOM. Программа его
+# переваривает, но JSON с BOM — источник сюрпризов, пишем без него.
+[System.IO.File]::WriteAllText($latestPath, ($latest | ConvertTo-Json),
+                               (New-Object System.Text.UTF8Encoding $false))
 Write-Host "Обновлён указатель: $latestPath"
 
 Remove-Item $staging -Recurse -Force

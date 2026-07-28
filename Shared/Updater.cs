@@ -135,29 +135,48 @@ namespace CupsCore
                 File.Copy(source, staged, overwrite: true);
 
                 // Скрипт: подождать выхода, подменить файл, запустить снова, убрать себя.
+                //
+                // Внутри — только латиница, и файл пишется в ASCII. cmd.exe читает
+                // .cmd в кодировке консоли (обычно cp866), а не в UTF-8: кириллица
+                // в теле скрипта превратилась бы в мусор, и при кириллическом имени
+                // пользователя пути перестали бы находиться.
+                //
+                // Итог работы пишется в лог рядом: окна у скрипта нет, показать
+                // сообщение на экране некому, а разбираться потом по чему-то надо.
                 string script = Path.Combine(staging, "apply.cmd");
-                File.WriteAllText(script, $"""
+                string log = Path.Combine(staging, "apply.log");
+
+                // Пути НЕ подставляются в текст скрипта, а передаются аргументами:
+                // аргументы процесса уходят в Unicode, а тело .cmd читается в кодировке
+                // консоли. Иначе кириллица в имени пользователя (C:\Users\Дмитрий\…)
+                // превратилась бы в мусор, и файл перестал бы находиться.
+                File.WriteAllText(script, """
                     @echo off
                     setlocal
-                    set "target={current}"
-                    set "staged={staged}"
+                    set "target=%~1"
+                    set "staged=%~2"
+                    set "log=%~3"
 
-                    rem Ждём, пока программа закроется и отпустит файл.
+                    rem Ждём, пока программа закроется и отпустит файл (до 40 секунд).
                     for /l %%i in (1,1,40) do (
                         move /y "%staged%" "%target%" >nul 2>&1 && goto started
-                        timeout /t 1 /nobreak >nul
+                        ping -n 2 127.0.0.1 >nul
                     )
-                    echo Не удалось обновить: файл занят.
-                    pause
+
+                    echo [%date% %time%] FAILED: target locked, update not applied>>"%log%"
                     exit /b 1
 
                     :started
+                    echo [%date% %time%] OK: updated>>"%log%"
                     start "" "%target%"
                     del "%~f0" >nul 2>&1
-                    """, System.Text.Encoding.Default);
+                    """, System.Text.Encoding.ASCII);
 
-                Process.Start(new ProcessStartInfo("cmd.exe", $"/c \"{script}\"")
+                // Внешняя пара кавычек — соглашение cmd: /c "…" снимает её сам,
+                // а внутренние кавычки достаются аргументам.
+                Process.Start(new ProcessStartInfo("cmd.exe")
                 {
+                    Arguments = $"/c \"\"{script}\" \"{current}\" \"{staged}\" \"{log}\"\"",
                     CreateNoWindow = true,
                     UseShellExecute = false
                 });

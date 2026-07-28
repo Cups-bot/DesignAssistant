@@ -217,34 +217,18 @@
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
                         <TextBlock Text="ДОСТУП К BITRIX" Style="{StaticResource Caption}"/>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="96"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
+                        <TextBlock Text="Ключ доступа" Foreground="{StaticResource TextMuted}"
+                                   FontFamily="{StaticResource Reg}" FontSize="12" Margin="2,0,0,4"/>
+                        <TextBox x:Name="BitrixKeyBox" Style="{StaticResource Box}"
+                                 FontSize="11.5" TextWrapping="Wrap" AcceptsReturn="False"
+                                 MinHeight="38" MaxHeight="60"
+                                 VerticalScrollBarVisibility="Auto"
+                                 VerticalContentAlignment="Top"/>
 
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Логин"
-                                       Foreground="{StaticResource TextMuted}"
-                                       FontFamily="{StaticResource Reg}" FontSize="12"
-                                       VerticalAlignment="Center"/>
-                            <TextBox Grid.Row="0" Grid.Column="1" x:Name="BitrixLoginBox"
-                                     Style="{StaticResource Box}" Margin="0,3"/>
-
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Пароль"
-                                       Foreground="{StaticResource TextMuted}"
-                                       FontFamily="{StaticResource Reg}" FontSize="12"
-                                       VerticalAlignment="Center"/>
-                            <PasswordBox Grid.Row="1" Grid.Column="1" x:Name="BitrixPasswordBox"
-                                         Margin="0,3" Height="32" Padding="10,0"
-                                         VerticalContentAlignment="Center"
-                                         Background="#0C1426" Foreground="{StaticResource TextMain}"
-                                         BorderBrush="#1F2937" BorderThickness="1.2"
-                                         FontFamily="{StaticResource Reg}" FontSize="12.5"/>
-                        </Grid>
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button x:Name="BitrixTestButton" Style="{StaticResource Ghost}"
+                                    Content="Проверить связь" Click="BitrixTest_Click"/>
+                        </StackPanel>
 
                         <TextBlock x:Name="BitrixHint" Foreground="{StaticResource TextMuted}"
                                    FontFamily="{StaticResource Reg}" FontSize="11"

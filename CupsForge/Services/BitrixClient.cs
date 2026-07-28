@@ -49,7 +49,7 @@ namespace CupsForge.Services
             if (resp.StatusCode == HttpStatusCode.NotFound)
                 throw new BitrixException($"Заказ {id} не найден (404).");
             if (resp.StatusCode == HttpStatusCode.Unauthorized)
-                throw new BitrixException("Ошибка авторизации (401). Проверьте логин/пароль в appsettings.json.");
+                throw new BitrixException("Ошибка авторизации (401). Проверьте ключ доступа в настройках.");
             if (!resp.IsSuccessStatusCode)
                 throw new BitrixException($"Сервер вернул {(int)resp.StatusCode} {resp.ReasonPhrase}.");
 

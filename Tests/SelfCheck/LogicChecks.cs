@@ -480,14 +480,16 @@ public static class LogicChecks
             noBase.FindMissingRoots().Contains(MachineProfile.Root.Base));
 
         // Профиль сохраняется атомарно и переживает перезапись.
+        // Доступ к Bitrix — готовый ключ, а не логин с паролем.
         var saved = MachineProfile.FromStakanyRoot(@"D:\Work\STAKANY");
-        saved.Bitrix.Login = "designer";
-        saved.Bitrix.Password = "секрет";
+        saved.Bitrix.AuthorizationHeader = "dGVzdC1rZXk=";
         var back = System.Text.Json.JsonSerializer.Deserialize<MachineProfile>(
             System.Text.Json.JsonSerializer.Serialize(saved))!;
-        check.Equal("логин Bitrix переживает сохранение", back.Bitrix.Login, "designer");
-        check.Equal("пароль Bitrix переживает сохранение", back.Bitrix.Password, "секрет");
-        check.True("заполненный доступ считается настроенным", back.Bitrix.IsConfigured);
+        check.Equal("ключ доступа переживает сохранение",
+            back.Bitrix.AuthorizationHeader, "dGVzdC1rZXk=");
+        check.True("заполненный ключ считается настроенным доступом", back.Bitrix.IsConfigured);
+        check.True("пустой доступ настроенным не считается",
+            !new MachineProfile().Bitrix.IsConfigured);
 
         // Устаревший путь к Illustrator не выдаётся за рабочий.
         string ghost = Path.Combine(sandbox, "нет", "Illustrator.exe");

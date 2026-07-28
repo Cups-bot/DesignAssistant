@@ -182,17 +182,51 @@ namespace CupsCore
         /// </summary>
         private void LoadBitrix()
         {
-            BitrixLoginBox.Text = _draft.Bitrix.Login;
-            BitrixPasswordBox.Password = _draft.Bitrix.Password;
+            BitrixKeyBox.Text = _draft.Bitrix.AuthorizationHeader;
 
-            bool hasReadyHeader = string.IsNullOrWhiteSpace(_draft.Bitrix.Login)
-                                  && !string.IsNullOrWhiteSpace(_draft.Bitrix.AuthorizationHeader);
+            BitrixHint.Text =
+                "Ключ выдаёт тот, кто ведёт Bitrix. Вставьте его целиком — можно как есть, " +
+                "можно с приставкой «Basic». Нужен только для загрузки заказа по ссылке: " +
+                "ручной ввод работает и без него. Хранится на этой машине, в репозиторий не попадает.";
+        }
 
-            BitrixHint.Text = hasReadyHeader
-                ? "Сейчас используется готовый заголовок авторизации. Заполните логин и пароль, " +
-                  "чтобы заменить его — так понятнее и проще менять."
-                : "Нужен только для загрузки заказа по ссылке. Ручной ввод работает и без него. " +
-                  "Хранится на этой машине и в репозиторий не попадает.";
+        /// <summary>
+        /// Проверка связи с Bitrix. Ставится приложением: HTTP-клиент живёт в его слое,
+        /// а это окно общее и о Bitrix знать не обязано.
+        /// Принимает ключ, возвращает готовую фразу для человека и признак успеха.
+        /// </summary>
+        public static Func<string, Task<(bool ok, string message)>>? ConnectionTest { get; set; }
+
+        private async void BitrixTest_Click(object sender, RoutedEventArgs e)
+        {
+            string key = BitrixKeyBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                ShowMessage("Сначала вставьте ключ доступа.");
+                return;
+            }
+
+            if (ConnectionTest == null)
+            {
+                ShowMessage("Проверка связи в этой сборке недоступна.");
+                return;
+            }
+
+            BitrixTestButton.IsEnabled = false;
+            ShowMessage("Проверяю связь…", ok: true);
+            try
+            {
+                var (ok, message) = await ConnectionTest(key);
+                ShowMessage(message, ok);
+            }
+            catch (Exception ex)
+            {
+                ShowMessage("Проверка не удалась: " + ex.Message);
+            }
+            finally
+            {
+                BitrixTestButton.IsEnabled = true;
+            }
         }
 
         // ---------- действия ----------
@@ -385,12 +419,11 @@ namespace CupsCore
             if (!string.IsNullOrWhiteSpace(baseFolder))
                 _draft.Roots[MachineProfile.Root.Base] = baseFolder;
 
-            // Логин с паролем важнее готового заголовка: если их ввели, header убираем,
-            // иначе он продолжил бы побеждать и правка не дала бы эффекта.
-            _draft.Bitrix.Login = BitrixLoginBox.Text.Trim();
-            _draft.Bitrix.Password = BitrixPasswordBox.Password;
-            if (!string.IsNullOrWhiteSpace(_draft.Bitrix.Login))
-                _draft.Bitrix.AuthorizationHeader = "";
+            // Работа идёт по готовому ключу, поэтому логин с паролем очищаем:
+            // иначе они соберут свой заголовок и перебьют введённый.
+            _draft.Bitrix.AuthorizationHeader = BitrixKeyBox.Text.Trim();
+            _draft.Bitrix.Login = "";
+            _draft.Bitrix.Password = "";
 
             _draft.Mode = RemoteRadio.IsChecked == true ? "remote" : "office";
             _draft.IllustratorExe = (IllustratorCombo.SelectedItem as IllustratorChoice)?.Value

@@ -1,0 +1,165 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Каталог продуктов CupsForge",
+  "description": "Описание продуктов: где шаблоны, куда складывать проекты, как называть папку.",
+  "type": "object",
+  "required": ["version", "products"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Версия каталога. Поднимайте при каждом изменении — она видна в настройках."
+    },
+    "updated": {
+      "type": "string",
+      "description": "Дата последнего изменения, например 2026-07-27."
+    },
+    "brands": {
+      "type": "array",
+      "description": "Направления в порядке показа в ручном вводе.",
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "enum": ["MyCups", "CuptoYou", "Flexo"] },
+          "title": { "type": "string", "description": "Название для списка." }
+        }
+      }
+    },
+    "articleTables": {
+      "type": "object",
+      "description": "Таблицы «артикул → файл шаблона», общие для нескольких продуктов.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": { "type": "string" }
+      }
+    },
+    "products": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Продукты. Проверяются сверху вниз, побеждает первый подошедший.",
+      "items": { "$ref": "#/definitions/product" }
+    }
+  },
+  "definitions": {
+    "product": {
+      "type": "object",
+      "required": ["id", "brand", "output"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Уникальный идентификатор продукта внутри каталога."
+        },
+        "title": {
+          "type": "string",
+          "description": "Название для человека — показывается в сообщениях и журнале."
+        },
+        "brand": {
+          "type": "string",
+          "enum": ["MyCups", "CuptoYou", "Flexo"],
+          "description": "Направление. Обязательно."
+        },
+        "productType": {
+          "type": "string",
+          "description": "Идентификатор типа продукта: Cups, Plastic, Sugar, Choko, Candy, Lids… Набор не ограничен: свой тип можно завести здесь же. Если не указан — продукт подходит любому типу."
+        },
+        "typeTitle": {
+          "type": "string",
+          "description": "Название типа продукта для выпадающего списка в ручном режиме («Стаканы», «Крышки»)."
+        },
+        "printTech": {
+          "type": "array",
+          "description": "Способы печати, которым подходит продукт. Не указан — подходит любой.",
+          "items": { "type": "string", "enum": ["Offset", "Digital", "Pantone"] }
+        },
+        "typeKeywords": {
+          "type": "array",
+          "description": "Слова, по которым тип продукта из Bitrix относится к этому продукту («стакан», «крышк»). Сравнение по вхождению, без учёта регистра.",
+          "items": { "type": "string" }
+        },
+        "coating": {
+          "type": "boolean",
+          "description": "Участвует ли покрытие (soft touch и т.п.) в args.txt."
+        },
+        "argsCountry": {
+          "type": "boolean",
+          "description": "Дописывать ли страну последней строкой args.txt (CupToYou)."
+        },
+        "output": {
+          "type": "string",
+          "description": "Куда складывать готовые проекты: имя логического корня (out.mycups, out.flexo, out.offset, out.padprint, out.cuptoyou) либо путь с подстановкой, например {base}/Lids."
+        },
+        "naming": {
+          "type": "string",
+          "enum": ["plain", "pantone"],
+          "default": "plain",
+          "description": "plain — папка называется как введённое имя дизайна; pantone — «<артикул>-<номер>_<название>»."
+        },
+        "argsTech": {
+          "type": "string",
+          "description": "Что писать третьей строкой в args.txt. Не указано — способ печати из заказа."
+        },
+        "articleFrom": {
+          "type": "string",
+          "enum": ["lastWord", "last8"],
+          "default": "lastWord",
+          "description": "Как ручной редактор достаёт артикул из имени дизайна. В автоматическом режиме не используется."
+        },
+        "templateFolder": {
+          "type": "string",
+          "description": "Папка шаблонов, например {templates}/11_Lids."
+        },
+        "templateFolderByCountry": {
+          "type": "object",
+          "description": "Папка шаблонов для каждой страны (CupToYou).",
+          "additionalProperties": { "type": "string" },
+          "propertyNames": { "enum": ["TR", "DE", "EN", "IT"] }
+        },
+        "articles": {
+          "type": "string",
+          "description": "Имя таблицы из articleTables."
+        },
+        "byArticle": {
+          "type": "object",
+          "description": "Таблица «артикул → файл» прямо здесь, вместо ссылки на articleTables.",
+          "additionalProperties": { "type": "string" }
+        },
+        "variants": {
+          "type": "object",
+          "description": "Варианты продукта: вкус шоколада, вид конфет.",
+          "additionalProperties": { "$ref": "#/definitions/variant" }
+        },
+        "defaultVariant": {
+          "type": "string",
+          "description": "Вариант по умолчанию, если в заказе вкус не указан."
+        },
+        "filePattern": {
+          "type": "string",
+          "description": "Образец имени файла: {article}, {country} (строчными), {COUNTRY} (прописными)."
+        }
+      }
+    },
+    "variant": {
+      "type": "object",
+      "required": ["file"],
+      "additionalProperties": false,
+      "properties": {
+        "file": { "type": "string", "description": "Имя файла шаблона." },
+        "title": { "type": "string", "description": "Название варианта для списка в ручном режиме («Тёмный»)." },
+        "article": {
+          "type": "string",
+          "description": "Артикул, подставляемый в args.txt, если продукт выбран по этому варианту."
+        },
+        "keywords": {
+          "type": "array",
+          "description": "Слова, по которым вкус/вид из Bitrix относится к этому варианту.",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

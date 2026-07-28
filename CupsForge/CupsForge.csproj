@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>CupsForge</RootNamespace>
+    <AssemblyName>CupsForge</AssemblyName>
+    <!-- Версия сравнивается с раздачей при запуске. Поднимайте перед публикацией. -->
+    <Version>3.0.0</Version>
+    <ApplicationIcon>..\Images\Icon\logo.ico</ApplicationIcon>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
+
+  <!-- appsettings.json копируется рядом с exe -->
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <!-- Общий модуль (пути/шаблоны/enum'ы) — единый источник с ручным редактором -->
+  <ItemGroup>
+    <Compile Include="..\Shared\**\*.cs" Link="Shared\%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- Окно настроек тоже общее: одна разметка на обе программы. -->
+    <Page Include="..\Shared\SettingsWindow.xaml" Link="Shared\SettingsWindow.xaml" />
+    <!-- Каталог продуктов: копия внутри программы — последний источник в цепочке. -->
+    <EmbeddedResource Include="..\Shared\catalog.json" Link="Shared\catalog.json" />
+  </ItemGroup>
+
+  <!-- Та же защита, что и в корневом проекте: без неё вынос obj/bin наружу
+       затягивает в компиляцию устаревшие *.g.cs и ломает сборку дублями. -->
+  <PropertyGroup>
+    <DefaultItemExcludes>$(DefaultItemExcludes);**\bin\**;**\obj\**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <!-- Шрифты (переиспользуем из родительского проекта) -->
+  <ItemGroup>
+    <Resource Include="..\Fonts\SFProText-Bold.ttf"          Link="Fonts\SFProText-Bold.ttf" />
+    <Resource Include="..\Fonts\SFProText-BoldItalic.ttf"    Link="Fonts\SFProText-BoldItalic.ttf" />
+    <Resource Include="..\Fonts\SFProText-Light.ttf"         Link="Fonts\SFProText-Light.ttf" />
+    <Resource Include="..\Fonts\SFProText-Medium.ttf"        Link="Fonts\SFProText-Medium.ttf" />
+    <Resource Include="..\Fonts\SFProText-Regular.ttf"       Link="Fonts\SFProText-Regular.ttf" />
+    <Resource Include="..\Fonts\SFProText-Semibold.ttf"      Link="Fonts\SFProText-Semibold.ttf" />
+    <Resource Include="..\Fonts\SFProText-SemiboldItalic.ttf" Link="Fonts\SFProText-SemiboldItalic.ttf" />
+  </ItemGroup>
+
+  <!-- Иконки/картинки -->
+  <ItemGroup>
+    <Resource Include="..\Images\Icon\logo.ico" Link="Images\Icon\logo.ico">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="..\Images\Icon\logo_white.ico" Link="Images\Icon\logo_white.ico" />
+  </ItemGroup>
+
+</Project>

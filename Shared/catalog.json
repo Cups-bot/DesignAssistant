@@ -1,0 +1,265 @@
+// Каталог продуктов. Единственное место, где описано, ЧТО умеет программа.
+//
+// Добавление нового типа продукта (крышки, пакеты и т.п.) — это дописать блок
+// в "products" и положить шаблоны в папку. Пересобирать программу не нужно.
+//
+// Пути пишутся через логические корни в фигурных скобках: {templates}, {out.mycups}
+// и т.д. Реальные папки задаются в настройках рабочего места у каждого свои,
+// поэтому один и тот же каталог работает и в офисе, и на домашней машине.
+//
+// Разделители можно писать через / — программа приведёт их к виду Windows.
+{
+  // Схема рядом: VS Code будет подсказывать поля и подсвечивать опечатки.
+  "$schema": "./catalog.schema.json",
+
+  "version": 1,
+  "updated": "2026-07-27",
+
+  // Направления в порядке показа в ручном вводе. Порядок продуктов ниже задаёт
+  // приоритет подбора и для списка не годится.
+  "brands": [
+    { "id": "MyCups",   "title": "MyCups" },
+    { "id": "CuptoYou", "title": "CupToYou" },
+    { "id": "Flexo",    "title": "Formacia (флексо)" }
+  ],
+
+  // Таблицы «артикул → файл шаблона». Вынесены отдельно, потому что одна и та же
+  // таблица используется несколькими продуктами.
+  "articleTables": {
+
+    "offset": {
+      "DW80-280": "_DW80-280-0000 MC_work.ai",
+      "DW90-430": "_DW90-430-0000 MC_work.ai",
+      "DW90-530": "_DW90-530-0000 MC_work.ai",
+      "EM80-280": "_EM80-280-0000 MC_work.ai",
+      "EM90-430": "_EM90-430-0000 MC_work.ai",
+      "EM90-530": "_EM90-530-0000 MC_work.ai"
+    },
+
+    "flexo": {
+      "HB80-280v": "_HB80-280v-0000.ai",
+      "HB80-280-L": "_HB80-280-L-0000.ai",
+      "HB90-430-L": "_HB90-430-L-0000.ai",
+      "EHB80-280": "_EHB80-280-0000.ai",
+      "EHB90-430": "_EHB90-430-0000.ai",
+      "EHB90-530": "_EHB90-530-0000.ai",
+      "EH90-430": "_EH90-430-0000.ai",
+      "EH80-280": "_EH80-280-0000.ai",
+      "DW80-280": "_DW80-280-0000.ai",
+      "DW90-430": "_DW90-430-0000.ai",
+      "DW90-530": "_DW90-530-0000.ai",
+      "DWE80-280": "_DWE80-280-0000.ai",
+      "DWE90-430": "_DWE90-430-0000.ai",
+      "DWE90-530": "_DWE90-530-0000.ai",
+      "EM80-280": "_EM80-280-0000.ai",
+      "EM90-430": "_EM90-430-0000.ai",
+      "EM90-530": "_EM90-530-0000.ai",
+      "HB62-120": "_HB62-120_0000.ai",
+      "HB70-180": "_HB70-180-0000.ai",
+      "HB70-195": "_HB70-195-0000.ai",
+      "HB70-210": "_HB70-210-0000.ai",
+      "HB72-205": "_HB72-205-0000.ai",
+      "HB73-260": "_HB73-260_0000.ai",
+      "HB80-280": "_HB80-280-0000.ai",
+      "HB80-340": "_HB80-340-0000.ai",
+      "HB80-360": "_HB80-360-0000.ai",
+      "EHB80-360": "_EHB80-360-0000.ai",
+
+      // ВНИМАНИЕ: HB90-430 указывает на шаблон EHB90-430 (с лишней «E»).
+      // Перенесено как было в коде. Если это опечатка — правится здесь, одной строкой.
+      "HB90-430": "_EHB90-430-0000.ai",
+
+      "HB90-530": "_HB90-530-0000.ai",
+      "HB90-630": "_HB90-630-0000.ai"
+    },
+
+    "plastic": {
+      "BM90-410-V": "BM90-410-V_work.ai",
+      "BM90-500-V": "BM90-500-V_work.ai",
+      "BM90-655-V": "BM90-655-V_work.ai",
+      "PG95-400-P": "PG95-400-P_work.ai",
+      "PG95-520-P": "PG95-520-P_work.ai",
+      "PG95-600-P": "PG95-600-P_work.ai",
+      "BM90-410": "BM90-410_work.ai",
+      "BM90-500": "BM90-500_work.ai",
+      "BM90-655": "BM90-655_work.ai",
+      "PG95-400": "PG95-400_work.ai",
+      "PG95-520": "PG95-520_work.ai",
+      "PG95-600": "PG95-600_work.ai"
+    },
+
+    "sugar": {
+      "SUGAR-SH-P": "SUGAR-SH-P.ai",
+      "SUGAR-SH": "SUGAR-SH.ai",
+      "SUGAR-ST-P": "SUGAR-ST-P.ai",
+      "SUGAR-ST": "SUGAR-ST.ai"
+    },
+
+    "candy": {
+      "SWEET AS": "SWEET_AS.ai",
+      "SWEET D": "SWEET_D.ai"
+    }
+  },
+
+  // Продукты проверяются СВЕРХУ ВНИЗ, побеждает первый подошедший.
+  // Поэтому частные случаи (например, флексо-офсет) стоят выше общих.
+  //
+  // Поля отбора: brand — обязательно; productType и printTech — если не указаны,
+  // подходит любое значение.
+  //
+  // Как ищется файл шаблона (по порядку):
+  //   articles     — таблица «артикул → файл» из articleTables
+  //   variants     — по вкусу/виду (шоколад, конфеты); может заодно задать артикул
+  //   filePattern  — имя собирается по образцу: {article}, {country}
+  //
+  // naming: plain — папка называется как введённое имя дизайна;
+  //         pantone — «<артикул>-<номер>_<название>».
+  // argsTech: что писать третьей строкой в args.txt; если не задано — способ печати.
+  "products": [
+
+    {
+      "id": "flexo-offset",
+      "coating": true,
+      "typeKeywords": ["стакан"],
+      "articleFrom": "last8",
+      "title": "Formacia — офсет",
+      "brand": "Flexo",
+      "printTech": ["Offset"],
+      "output": "out.offset",
+      "naming": "plain",
+      "templateFolder": "{templates}/2_Offset",
+      "articles": "offset"
+    },
+
+    {
+      "id": "mycups-cups-pantone",
+      "typeTitle": "Стаканы",
+      "coating": true,
+      "typeKeywords": ["стакан"],
+      "title": "MyCups — стаканы, Pantone",
+      "brand": "MyCups",
+      "productType": "Cups",
+      "printTech": ["Pantone"],
+      "output": "out.flexo",
+      "naming": "pantone",
+      "templateFolder": "{templates}/1_Flexo/MyCups",
+      "articles": "flexo"
+    },
+
+    {
+      "id": "mycups-cups",
+      "typeTitle": "Стаканы",
+      "coating": true,
+      "typeKeywords": ["стакан"],
+      "articleFrom": "last8",
+      "title": "MyCups — стаканы, офсет/цифра",
+      "brand": "MyCups",
+      "productType": "Cups",
+      "output": "out.mycups",
+      "naming": "plain",
+      "templateFolder": "{templates}/2_Offset",
+      "articles": "offset"
+    },
+
+    {
+      "id": "mycups-plastic",
+      "typeTitle": "Пластик",
+      "typeKeywords": ["пластик"],
+      "title": "MyCups — пластик (PadPrint)",
+      "brand": "MyCups",
+      "productType": "Plastic",
+      "output": "out.padprint",
+      "naming": "plain",
+      "argsTech": "pantone",
+      "templateFolder": "{templates}/7_Plastic",
+      "articles": "plastic"
+    },
+
+    {
+      "id": "mycups-sugar",
+      "typeTitle": "Сахар",
+      "typeKeywords": ["сахар"],
+      "title": "MyCups — сахар",
+      "brand": "MyCups",
+      "productType": "Sugar",
+      "output": "out.mycups",
+      "naming": "plain",
+      "argsTech": "pantone",
+      "templateFolder": "{templates}/9_Sugar",
+      "articles": "sugar"
+    },
+
+    {
+      "id": "mycups-choko",
+      "typeTitle": "Шоколад",
+      "typeKeywords": ["шокол"],
+      "title": "MyCups — шоколад",
+      "brand": "MyCups",
+      "productType": "Choko",
+      "output": "out.mycups",
+      "naming": "plain",
+      "argsTech": "offset",
+      "templateFolder": "{templates}/8_Choko",
+      "variants": {
+        "Milk":       { "title": "Молочный", "file": "CHOKO_Milk.ai",       "keywords": ["молоч"] },
+        "Dark":       { "title": "Тёмный", "file": "CHOKO_Dark.ai",       "keywords": ["тёмн", "темн", "горьк"] },
+        "Orange":     { "title": "Апельсин", "file": "CHOKO_Orange.ai",     "keywords": ["апельс"] },
+        "Strawberry": { "title": "Клубника", "file": "CHOKO_Strawberry.ai", "keywords": ["straw", "клубн"] },
+        "White":      { "title": "Белый", "file": "CHOKO_White.ai",      "keywords": ["бел"] }
+      },
+      "defaultVariant": "Milk"
+    },
+
+    {
+      "id": "mycups-candy",
+      "typeTitle": "Конфеты",
+      "typeKeywords": ["конфет"],
+      "title": "MyCups — конфеты",
+      "brand": "MyCups",
+      "productType": "Candy",
+      "output": "out.mycups",
+      "naming": "plain",
+      "argsTech": "offset",
+      "templateFolder": "{templates}/10_Candy",
+      "articles": "candy",
+      // Если артикул из заказа не нашёлся, берём по виду — и заодно
+      // подставляем правильный артикул в args.txt.
+      "variants": {
+        "Assorted": { "title": "Ассорти", "file": "SWEET_AS.ai", "article": "SWEET AS", "keywords": ["assort", "ассорти"] },
+        "Dubai":    { "file": "SWEET_D.ai",  "article": "SWEET D",  "keywords": ["dubai", "дубай", "sweet d", "sweet_d"] }
+      },
+      "defaultVariant": "Assorted"
+    },
+
+    {
+      "id": "cuptoyou",
+      "argsCountry": true,
+      "coating": true,
+      "typeKeywords": ["стакан"],
+      "articleFrom": "last8",
+      "title": "CupToYou — стаканы по странам",
+      "brand": "CuptoYou",
+      "output": "out.cuptoyou",
+      "naming": "plain",
+      "templateFolderByCountry": {
+        "TR": "{templates}/3_CupsToYou_Tr",
+        "DE": "{templates}/4_CupsToYou_De",
+        "EN": "{templates}/5_CupsToYou_En",
+        "IT": "{templates}/6_CupsToYou_It"
+      },
+      "filePattern": "_{article}-0000 MC_{country}.ai"
+    },
+
+    {
+      "id": "flexo-pantone",
+      "coating": true,
+      "typeKeywords": ["стакан"],
+      "title": "Formacia — флексо, Pantone",
+      "brand": "Flexo",
+      "output": "out.flexo",
+      "naming": "pantone",
+      "templateFolder": "{templates}/1_Flexo",
+      "articles": "flexo"
+    }
+  ]
+}

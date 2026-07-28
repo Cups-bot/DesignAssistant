@@ -1,0 +1,15 @@
+bin/
+obj/
+Thumbs.db
+
+# Visual Studio служебные файлы (в любой папке, включая подпроекты)
+.vs/
+*.vsidx
+*.wsuo
+*.suo
+*.user
+*.sqlite
+
+# Доступ к Bitrix — это учётные данные к API, открытому в интернет.
+# В репозитории лежит только образец: appsettings.example.json.
+CupsForge/appsettings.json

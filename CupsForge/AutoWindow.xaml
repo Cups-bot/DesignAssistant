@@ -1,0 +1,388 @@
+<Window x:Class="CupsForge.AutoWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        Title="CupsForge"
+        Width="430"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterScreen"
+        SizeChanged="Window_SizeChanged"
+        ResizeMode="NoResize"
+        Background="#020617"
+        Icon="pack://application:,,,/Images/Icon/logo.ico">
+
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="32" ResizeBorderThickness="0" CornerRadius="0" UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <FontFamily x:Key="Reg">pack://application:,,,/Fonts/#SF Pro Text</FontFamily>
+        <FontFamily x:Key="Med">pack://application:,,,/Fonts/#SF Pro Text Medium</FontFamily>
+        <FontFamily x:Key="Semi">pack://application:,,,/Fonts/#SF Pro Text Semibold</FontFamily>
+        <FontFamily x:Key="Bold">pack://application:,,,/Fonts/#SF Pro Text Bold</FontFamily>
+
+        <SolidColorBrush x:Key="TextMain" Color="#E5E7EB"/>
+        <SolidColorBrush x:Key="TextMuted" Color="#9CA3AF"/>
+        <SolidColorBrush x:Key="Accent" Color="#38BDF8"/>
+
+        <LinearGradientBrush x:Key="AppBg" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#020617" Offset="0"/>
+            <GradientStop Color="#04091A" Offset="0.7"/>
+            <GradientStop Color="#020617" Offset="1"/>
+        </LinearGradientBrush>
+
+        <!-- Метка / значение строки в панели сверки -->
+        <Style x:Key="Lbl" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextMuted}"/>
+            <Setter Property="FontFamily" Value="{StaticResource Reg}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="0,3,0,3"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="Val" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
+            <Setter Property="FontFamily" Value="{StaticResource Med}"/>
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="Margin" Value="0,3,0,3"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="RoundedTextBox" TargetType="TextBox">
+            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
+            <Setter Property="Background" Value="#0C1426"/>
+            <Setter Property="BorderBrush" Value="#1F2937"/>
+            <Setter Property="BorderThickness" Value="1.2"/>
+            <Setter Property="Padding" Value="12,9"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontFamily" Value="{StaticResource Reg}"/>
+            <Setter Property="CaretBrush" Value="#E5E7EB"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="b" CornerRadius="16"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ScrollViewer x:Name="PART_ContentHost"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="b" Property="BorderBrush" Value="#2563EB"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Круглая иконочная кнопка -->
+        <Style x:Key="IconButton" TargetType="Button">
+            <Setter Property="Width" Value="44"/>
+            <Setter Property="Height" Value="44"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="#F9FAFB"/>
+            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="Background" Value="#111827"/>
+            <Setter Property="BorderBrush" Value="#1F2937"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="b" CornerRadius="14"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1.2">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="b" Property="Background" Value="#1D283A"/>
+                                <Setter TargetName="b" Property="BorderBrush" Value="#2563EB"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="b" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Плоская текстовая кнопка (переключатель журнала) -->
+        <Style x:Key="FlatText" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource TextMuted}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="8,3"/>
+            <Setter Property="FontFamily" Value="{StaticResource Med}"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="b" Background="{TemplateBinding Background}" CornerRadius="999" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="b" Property="Background" Value="#0C1426"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CreateButton" TargetType="Button">
+            <Setter Property="Height" Value="48"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="#F9FAFB"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontFamily" Value="{StaticResource Semi}"/>
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                        <GradientStop Color="#2563EB" Offset="0"/>
+                        <GradientStop Color="#38BDF8" Offset="1"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="p" CornerRadius="22" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="p" Property="Opacity" Value="0.92"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="p" Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Border Background="{StaticResource AppBg}" CornerRadius="0">
+        <Grid Margin="14,8,14,12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Полоска обновления: появляется, только если на раздаче есть версия новее -->
+            <Border x:Name="UpdateBar" Grid.Row="0" Visibility="Collapsed" Panel.ZIndex="2"
+                    CornerRadius="10" Padding="10,5" Margin="0,30,0,0"
+                    Background="#0B2438" BorderBrush="#1D4ED8" BorderThickness="1">
+                <Grid>
+                    <TextBlock x:Name="UpdateText" Foreground="{StaticResource TextMain}"
+                               FontFamily="{StaticResource Reg}" FontSize="11.5"
+                               VerticalAlignment="Center" HorizontalAlignment="Left"/>
+                    <Button x:Name="UpdateButton" Style="{StaticResource FlatText}"
+                            Content="Обновить" Foreground="{StaticResource Accent}"
+                            HorizontalAlignment="Right" Click="UpdateButton_Click"/>
+                </Grid>
+            </Border>
+
+            <!-- Заголовок / mac-точки -->
+            <Grid Grid.Row="0" Height="26">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
+                    <Ellipse Width="10" Height="10" Fill="#F97373" Margin="0,0,6,0" Cursor="Hand"
+                             shell:WindowChrome.IsHitTestVisibleInChrome="True"
+                             MouseLeftButtonDown="Close_Click"/>
+                    <Ellipse Width="10" Height="10" Fill="#FBBF24" Margin="0,0,6,0" Cursor="Hand"
+                             shell:WindowChrome.IsHitTestVisibleInChrome="True"
+                             MouseLeftButtonDown="Minimize_Click"/>
+                    <Ellipse Width="10" Height="10" Fill="#34D399"/>
+                </StackPanel>
+                <TextBlock VerticalAlignment="Center" HorizontalAlignment="Center"
+                           FontFamily="{StaticResource Bold}" FontSize="13">
+                    <Run Text="Cups" Foreground="{StaticResource TextMain}"/><Run Text="Forge" Foreground="{StaticResource Accent}"/>
+                </TextBlock>
+            </Grid>
+
+            <!-- Ввод ссылки -->
+            <StackPanel Grid.Row="2" Margin="0,12,0,0">
+                <TextBlock Text="ССЫЛКА НА ЗАКАЗ BITRIX" Foreground="{StaticResource TextMuted}"
+                           FontFamily="{StaticResource Med}" FontSize="10" Margin="4,0,0,6"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="LinkBox" Grid.Column="0" Style="{StaticResource RoundedTextBox}"
+                             Height="44" KeyDown="LinkBox_KeyDown"/>
+                    <Button x:Name="FetchButton" Grid.Column="1" Style="{StaticResource IconButton}"
+                            Margin="8,0,0,0" Content="&#x2192;" ToolTip="Загрузить данные из Bitrix"
+                            Click="FetchButton_Click"/>
+                    <Button x:Name="PencilButton" Grid.Column="2" Style="{StaticResource IconButton}"
+                            Margin="8,0,0,0" Content="&#x270E;" ToolTip="Открыть ручной редактор"
+                            Click="PencilButton_Click"/>
+                    <Button x:Name="SettingsButton" Grid.Column="3" Style="{StaticResource IconButton}"
+                            Margin="8,0,0,0" Content="&#x2699;" ToolTip="Настройки рабочего места"
+                            Click="SettingsButton_Click"/>
+                </Grid>
+            </StackPanel>
+
+            <!-- Панель сверки (над полем ввода ссылки) -->
+            <Border x:Name="SpecPanel" Grid.Row="1" Margin="0,14,0,0"
+                    CornerRadius="18" Padding="14,12" BorderThickness="1.2" BorderBrush="#1F2937"
+                    Background="#0B1220" Visibility="Collapsed">
+                <StackPanel>
+                    <!-- Заголовок-переключатель: панель можно свернуть, состояние
+                         запоминается в профиле и восстанавливается при следующем запуске. -->
+                    <Button x:Name="SpecToggle" Style="{StaticResource FlatText}" Padding="0,0,0,10"
+                            HorizontalAlignment="Stretch" Click="SpecToggle_Click">
+                        <Grid Width="370">
+                            <TextBlock x:Name="SpecHeader" Text="ПРОВЕРКА ДАННЫХ"
+                                       Foreground="{StaticResource TextMuted}"
+                                       FontFamily="{StaticResource Med}" FontSize="10"
+                                       HorizontalAlignment="Left"/>
+                            <TextBlock x:Name="SpecChevron" Text="⌃" Foreground="{StaticResource TextMuted}"
+                                       FontSize="11" HorizontalAlignment="Right"/>
+                        </Grid>
+                    </Button>
+                    <Grid x:Name="SpecBody">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="96"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Направление"  Style="{StaticResource Lbl}"/>
+                        <TextBlock Grid.Row="0" Grid.Column="1" x:Name="ValBrand"   Style="{StaticResource Val}"/>
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Заказ"        Style="{StaticResource Lbl}"/>
+                        <TextBlock Grid.Row="1" Grid.Column="1" x:Name="ValOrder"   Style="{StaticResource Val}"/>
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Название"     Style="{StaticResource Lbl}"/>
+                        <TextBlock Grid.Row="2" Grid.Column="1" x:Name="ValName"    Style="{StaticResource Val}"/>
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Тип"          Style="{StaticResource Lbl}"/>
+                        <TextBlock Grid.Row="3" Grid.Column="1" x:Name="ValType"    Style="{StaticResource Val}"/>
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Артикул"      Style="{StaticResource Lbl}"/>
+                        <TextBlock Grid.Row="4" Grid.Column="1" x:Name="ValArticul" Style="{StaticResource Val}"/>
+                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Печать"       Style="{StaticResource Lbl}"/>
+                        <TextBlock Grid.Row="5" Grid.Column="1" x:Name="ValPrint"   Style="{StaticResource Val}"/>
+                        <TextBlock Grid.Row="6" Grid.Column="0" Text="Материал"     Style="{StaticResource Lbl}"/>
+                        <TextBlock Grid.Row="6" Grid.Column="1" x:Name="ValMaterial" Style="{StaticResource Val}"/>
+                        <TextBlock Grid.Row="7" Grid.Column="0" Text="Покрытие"     Style="{StaticResource Lbl}"/>
+                        <TextBlock Grid.Row="7" Grid.Column="1" x:Name="ValCoating" Style="{StaticResource Val}"/>
+                        <TextBlock Grid.Row="8" Grid.Column="0" Text="Страна"       Style="{StaticResource Lbl}"/>
+                        <TextBlock Grid.Row="8" Grid.Column="1" x:Name="ValCountry" Style="{StaticResource Val}"/>
+                    </Grid>
+
+                    <Border x:Name="WarnPanel" Visibility="Collapsed" Margin="0,12,0,0"
+                            CornerRadius="12" Padding="12,8" Background="#2A1B10" BorderBrush="#7C4A12" BorderThickness="1">
+                        <TextBlock x:Name="WarnText" Foreground="#FBBF24" FontFamily="{StaticResource Reg}"
+                                   FontSize="12" TextWrapping="Wrap"/>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- Ручной ввод: только поля, которые правят руками. Никаких картинок —
+                 это не основной экран, и раздувать его незачем. Состав полей
+                 берётся из каталога, поэтому новый продукт появляется здесь сам. -->
+            <Border x:Name="ManualPanel" Grid.Row="3" Margin="0,12,0,0" Visibility="Collapsed"
+                    CornerRadius="18" Padding="14,12" BorderThickness="1.2" BorderBrush="#1F2937"
+                    Background="#0B1220">
+                <StackPanel>
+                    <TextBlock Text="РУЧНОЙ ВВОД" Foreground="{StaticResource TextMuted}"
+                               FontFamily="{StaticResource Med}" FontSize="10" Margin="0,0,0,10"/>
+
+                    <TextBlock Text="ИМЯ ДИЗАЙНА" Style="{StaticResource Lbl}" Margin="2,0,0,4"/>
+                    <TextBox x:Name="ManualNameBox" Style="{StaticResource RoundedTextBox}"
+                             Height="38" Margin="0,0,0,10"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="96"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock x:Name="LblBrand" Grid.Row="0" Grid.Column="0" Text="Направление" Style="{StaticResource Lbl}"/>
+                        <ComboBox  x:Name="BrandCombo" Grid.Row="0" Grid.Column="1" Margin="0,3" Height="30"
+                                   FontFamily="{StaticResource Reg}" FontSize="12.5"
+                                   SelectionChanged="ManualBrand_Changed"/>
+
+                        <TextBlock x:Name="LblType" Grid.Row="1" Grid.Column="0" Text="Тип продукта" Style="{StaticResource Lbl}"/>
+                        <ComboBox  x:Name="TypeCombo" Grid.Row="1" Grid.Column="1" Margin="0,3" Height="30"
+                                   FontFamily="{StaticResource Reg}" FontSize="12.5"
+                                   SelectionChanged="ManualType_Changed"/>
+
+                        <TextBlock x:Name="LblTech" Grid.Row="2" Grid.Column="0" Text="Печать" Style="{StaticResource Lbl}"/>
+                        <ComboBox  x:Name="TechCombo" Grid.Row="2" Grid.Column="1" Margin="0,3" Height="30"
+                                   FontFamily="{StaticResource Reg}" FontSize="12.5"
+                                   SelectionChanged="ManualDetail_Changed"/>
+
+                        <TextBlock x:Name="LblVariant" Grid.Row="3" Grid.Column="0" Text="Вариант" Style="{StaticResource Lbl}"/>
+                        <ComboBox  x:Name="VariantCombo" Grid.Row="3" Grid.Column="1" Margin="0,3" Height="30"
+                                   FontFamily="{StaticResource Reg}" FontSize="12.5"/>
+
+                        <TextBlock x:Name="LblCountry" Grid.Row="4" Grid.Column="0" Text="Страна" Style="{StaticResource Lbl}"/>
+                        <ComboBox  x:Name="CountryCombo" Grid.Row="4" Grid.Column="1" Margin="0,3" Height="30"
+                                   FontFamily="{StaticResource Reg}" FontSize="12.5"/>
+
+                        <TextBlock x:Name="LblMaterial" Grid.Row="5" Grid.Column="0" Text="Материал" Style="{StaticResource Lbl}"/>
+                        <ComboBox  x:Name="MaterialCombo" Grid.Row="5" Grid.Column="1" Margin="0,3" Height="30"
+                                   FontFamily="{StaticResource Reg}" FontSize="12.5"
+                                   SelectionChanged="ManualDetail_Changed"/>
+
+                        <TextBlock x:Name="LblCoating" Grid.Row="6" Grid.Column="0" Text="Покрытие" Style="{StaticResource Lbl}"/>
+                        <ComboBox  x:Name="CoatingCombo" Grid.Row="6" Grid.Column="1" Margin="0,3" Height="30"
+                                   FontFamily="{StaticResource Reg}" FontSize="12.5"/>
+                    </Grid>
+
+                    <TextBlock x:Name="ManualProductInfo" Foreground="{StaticResource TextMuted}"
+                               FontFamily="{StaticResource Reg}" FontSize="11"
+                               TextWrapping="Wrap" Margin="2,10,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Кнопка создания -->
+            <Button x:Name="BuildButton" Grid.Row="4" Style="{StaticResource CreateButton}"
+                    Margin="0,12,0,0" Content="СОЗДАТЬ ПРОЕКТ" IsEnabled="False" Click="BuildButton_Click"/>
+
+            <!-- Переключатель журнала -->
+            <Button x:Name="ToggleLogButton" Grid.Row="5" Style="{StaticResource FlatText}"
+                    Margin="0,8,0,0" Content="📄 Показать журнал" Click="ToggleLogButton_Click"/>
+
+            <!-- Журнал (скрыт по умолчанию) -->
+            <Border x:Name="LogPanel" Grid.Row="6" Margin="0,6,0,0" CornerRadius="14" Padding="12,8"
+                    Background="#020617" BorderBrush="#111827" BorderThickness="1" Visibility="Collapsed">
+                <TextBox x:Name="LogBox" Height="84" IsReadOnly="True" TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto" Background="Transparent"
+                         Foreground="{StaticResource TextMain}" BorderThickness="0" FontSize="12"/>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

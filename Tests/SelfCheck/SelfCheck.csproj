@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>SelfCheck</RootNamespace>
+    <AssemblyName>selfcheck</AssemblyName>
+    <StartupObject>SelfCheck.Program</StartupObject>
+    <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
+    <!-- Должно совпадать с CupsForge: обычный exe не может ссылаться на автономный. -->
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\CupsForge\CupsForge.csproj" />
+  </ItemGroup>
+
+  <!-- Окно ищет шрифты и иконку в запускающей сборке — иначе упадёт на иконке. -->
+  <ItemGroup>
+    <Resource Include="..\..\Images\Icon\logo.ico" Link="Images\Icon\logo.ico" />
+    <Resource Include="..\..\Fonts\*.ttf" Link="Fonts\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>

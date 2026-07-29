@@ -36,10 +36,47 @@ namespace CupsCore
 
         /// <summary>
         /// Что произошло при последней загрузке: какой источник сработал и почему
-        /// не подошли предыдущие. Показывается в настройках.
+        /// не подошли предыдущие.
+        ///
+        /// Обращение сначала гарантирует, что каталог загружен: <see cref="Reload"/>
+        /// только сбрасывает кэш, а чтение идёт лениво — иначе журнал показывал бы
+        /// предыдущую загрузку, а диагностика, которая врёт о себе, хуже её отсутствия.
         /// </summary>
-        public static IReadOnlyList<string> LoadLog => _loadLog;
+        public static IReadOnlyList<string> LoadLog
+        {
+            get
+            {
+                try { _ = Current; } catch (CatalogException) { /* журнал нужен и при провале */ }
+                return _loadLog;
+            }
+        }
         private static List<string> _loadLog = new();
+
+        /// <summary>
+        /// Путь, по которому каталог ожидается на этой машине. Пустая строка —
+        /// путь не настроен или корни ещё не заданы.
+        /// </summary>
+        public static string ExpectedPath
+        {
+            get
+            {
+                string configured = MachineProfile.Current.CatalogPath;
+                if (string.IsNullOrWhiteSpace(configured))
+                    return "";
+
+                try { return PathResolver.Expand(configured); }
+                catch (PathResolutionException) { return ""; }
+            }
+        }
+
+        /// <summary>
+        /// Работаем ли на копии, вшитой в программу. Для дизайнера это значит, что
+        /// его правки каталога не действуют, — и об этом надо сказать вслух.
+        /// </summary>
+        public static bool IsUsingEmbedded =>
+            Current.SourceName.Contains(EmbeddedSourceName, StringComparison.Ordinal);
+
+        private const string EmbeddedSourceName = "копия внутри программы";
 
         public static Catalog Load()
         {
@@ -134,7 +171,7 @@ namespace CupsCore
             });
 
             // 3. Копия внутри программы.
-            yield return ("копия внутри программы", ReadEmbedded);
+            yield return (EmbeddedSourceName, ReadEmbedded);
         }
 
         private static string? ReadEmbedded()

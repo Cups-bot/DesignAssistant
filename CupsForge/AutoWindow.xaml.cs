@@ -25,6 +25,7 @@ namespace CupsForge
             {
                 SettingsWindow.EnsureConfigured(this);
                 SetSpecExpanded(MachineProfile.Current.SpecPanelExpanded, remember: false);
+                ReportCatalog();
                 CheckForUpdate();
             };
         }
@@ -207,6 +208,39 @@ namespace CupsForge
             {
                 FillManualFrom(_resolved);
                 Log("Данные заказа перенесены в поля ручного ввода.");
+            }
+        }
+
+        /// <summary>
+        /// Говорит, откуда взят каталог. Если работаем на копии внутри программы,
+        /// а файл на машине настроен — правки дизайнера не действуют, и молчать
+        /// об этом нельзя: со стороны выглядит как «замена каталога не помогает».
+        /// </summary>
+        private void ReportCatalog()
+        {
+            try
+            {
+                var catalog = CatalogService.Current;
+                Log($"Каталог: версия {catalog.Version} от {catalog.Updated} — {catalog.SourceName}");
+
+                if (!CatalogService.IsUsingEmbedded)
+                    return;
+
+                string expected = CatalogService.ExpectedPath;
+                if (string.IsNullOrWhiteSpace(expected))
+                    return;
+
+                CatalogWarning.Text =
+                    "Каталог взят из копии внутри программы — правки файла не действуют. " +
+                    $"Ожидался здесь: {expected}";
+                CatalogWarningBar.Visibility = Visibility.Visible;
+
+                foreach (string line in CatalogService.LoadLog)
+                    Log("  " + line);
+            }
+            catch (CatalogException ex)
+            {
+                Log(ex.Message);
             }
         }
 

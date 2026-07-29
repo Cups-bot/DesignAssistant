@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using CupsCore;
 
 namespace SelfCheck;
@@ -25,6 +26,7 @@ public static class LogicChecks
         NewProductWithoutCode(check);
         RemoteProfile(check);
         Regressions(check);
+        CatalogSources(check);
         EndToEnd(check);
         Updates(check);
 
@@ -536,6 +538,68 @@ public static class LogicChecks
 
         Directory.Delete(sandbox, true);
         MachineProfile.Set(MachineProfile.CreateOfficeDefault());
+    }
+
+    /// <summary>
+    /// Откуда берётся каталог. Дизайнеры на удалёнке кладут его в папку шаблонов
+    /// и ждут, что он подменит вшитую в программу копию. Проверяем, что так и есть.
+    /// </summary>
+    private static void CatalogSources(Checker check)
+    {
+        check.Section("Источник каталога");
+
+        string sandbox = Path.Combine(Path.GetTempPath(), "cupsforge_selfcheck_src");
+        if (Directory.Exists(sandbox)) Directory.Delete(sandbox, true);
+
+        var profile = MachineProfile.FromStakanyRoot(Path.Combine(sandbox, "STAKANY"));
+        MachineProfile.Set(profile);
+
+        string templates = PathResolver.Root(MachineProfile.Root.Templates);
+        Directory.CreateDirectory(templates);
+
+        // Каталог с заведомо отличимой версией — чтобы понять, какой именно взяли.
+        const string marked = """
+        {
+          "version": 99,
+          "updated": "из папки шаблонов",
+          "products": [
+            {
+              "id": "probe", "title": "Проба", "brand": "MyCups",
+              "productType": "Probe", "output": "out.mycups",
+              "templateFolder": "{templates}/probe",
+              "byArticle": { "X": "x.ai" }
+            }
+          ]
+        }
+        """;
+        File.WriteAllText(Path.Combine(templates, CatalogService.FileName), marked);
+
+        CatalogService.Reload();
+        check.Equal("каталог из папки шаблонов побеждает вшитый",
+            CatalogService.Current.Version.ToString(), "99");
+        check.True("и это видно в источнике",
+            CatalogService.Current.SourceName.Contains("шаблон"));
+
+        // Файла нет — работаем на вшитой копии, а не падаем.
+        File.Delete(Path.Combine(templates, CatalogService.FileName));
+        CatalogService.Reload();
+        check.True("без файла берётся копия внутри программы",
+            CatalogService.Current.SourceName.Contains("внутри программы"));
+
+        // Битый файл не должен молча подменяться вшитым без следа в журнале.
+        File.WriteAllText(Path.Combine(templates, CatalogService.FileName), "{ это не json ");
+        CatalogService.Reload();
+        check.True("нечитаемый каталог не роняет программу",
+            CatalogService.Current.Version > 0);
+        check.True("про нечитаемый каталог остаётся запись в журнале",
+            CatalogService.LoadLog.Any(l => l.Contains("разобрать не удалось")));
+        check.True("и видно, что работаем на вшитой копии", CatalogService.IsUsingEmbedded);
+        check.True("путь, где каталог ожидался, известен",
+            CatalogService.ExpectedPath.EndsWith(CatalogService.FileName));
+
+        Directory.Delete(sandbox, true);
+        MachineProfile.Set(MachineProfile.CreateOfficeDefault());
+        CatalogService.Reload();
     }
 
     /// <summary>Пустые файлы шаблонов там, где их ждёт каталог.</summary>

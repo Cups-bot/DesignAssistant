@@ -14,6 +14,7 @@ namespace CupsForge
     public partial class AutoWindow
     {
         private DistManifest? _manifest;
+        private DistApp? _distApp;
         private SyncPlan? _plan;
         private SyncState _syncState = SyncState.Load();
         private bool _syncing;
@@ -23,6 +24,16 @@ namespace CupsForge
             _manifest = await DistributionClient.FetchAsync();
             if (_manifest == null)
                 return; // нет сети или раздачи — молча работаем на своём
+
+            // Новая версия программы из раздачи — тот же канал, что и шаблоны.
+            var newApp = DistributionClient.NewerApp(_manifest);
+            if (newApp != null && _update == null)
+            {
+                _distApp = newApp;
+                UpdateText.Text = $"Доступна версия {newApp.Version}" +
+                                  (string.IsNullOrWhiteSpace(newApp.Notes) ? "" : $" · {newApp.Notes}");
+                UpdateBar.Visibility = Visibility.Visible;
+            }
 
             _plan = DistributionClient.Compare(_manifest, _syncState);
             if (_plan.IsEmpty)

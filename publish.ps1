@@ -66,6 +66,69 @@ $latestPath = Join-Path $Destination 'latest.json'
                                (New-Object System.Text.UTF8Encoding $false))
 Write-Host "Обновлён указатель: $latestPath"
 
+# --- Заливка в публичную раздачу ---
+# Без неё новая версия доедет только до офиса. Раздача — единственный канал,
+# который достаёт до домашних машин.
+$tokenPath = Join-Path $env:APPDATA 'CupsForge\github-token.txt'
+if (Test-Path $tokenPath) {
+    $token = (Get-Content $tokenPath -Raw).Trim()
+    $headers = @{ Authorization = "Bearer $token"; 'User-Agent' = 'CupsForge-Publisher'
+                  Accept = 'application/vnd.github+json' }
+    $repo = 'Cups-bot/CupsForge-public'
+    $tag  = 'dist'
+
+    Write-Host ''
+    Write-Host 'Заливаю программу в раздачу…'
+    try {
+        $release = Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/$repo/releases/tags/$tag"
+    } catch {
+        $release = Invoke-RestMethod -Headers $headers -Method Post `
+            -Uri "https://api.github.com/repos/$repo/releases" `
+            -Body (@{ tag_name = $tag; name = 'Раздача файлов' } | ConvertTo-Json)
+    }
+
+    $exe = Join-Path $target 'CupsForge.exe'
+    $sha = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+    $assetName = "app-$version.exe"
+
+    # Одноимённое вложение заменяем: перезалить поверх нельзя.
+    foreach ($a in $release.assets) {
+        if ($a.name -eq $assetName) {
+            Invoke-RestMethod -Headers $headers -Method Delete `
+                -Uri "https://api.github.com/repos/$repo/releases/assets/$($a.id)" | Out-Null
+        }
+    }
+
+    $uploadHeaders = $headers.Clone()
+    $uploadHeaders['Content-Type'] = 'application/octet-stream'
+    $uploadUrl = ($release.upload_url -replace '\{.*$', '') + "?name=$assetName"
+    Invoke-RestMethod -Headers $uploadHeaders -Method Post -Uri $uploadUrl -InFile $exe | Out-Null
+
+    # Опись: программу дописываем, шаблоны не трогаем — их ведёт push-templates.
+    $manifestPath = Join-Path $root 'manifest.json'
+    $manifest = if (Test-Path $manifestPath) {
+        Get-Content $manifestPath -Raw | ConvertFrom-Json
+    } else {
+        [pscustomobject]@{ generated = ''; app = $null; catalog = $null; templates = @() }
+    }
+
+    $manifest.generated = (Get-Date).ToString('s')
+    $manifest | Add-Member -NotePropertyName app -NotePropertyValue ([ordered]@{
+        version = $version; notes = $Notes; asset = $assetName
+        size = (Get-Item $exe).Length; sha256 = $sha
+    }) -Force
+
+    [System.IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json -Depth 6),
+                                   (New-Object System.Text.UTF8Encoding $false))
+    Write-Host "Программа в раздаче: $assetName"
+    Write-Host "Опись обновлена: $manifestPath"
+    Write-Host 'Не забудьте отправить опись: git add manifest.json && git commit && git push'
+} else {
+    Write-Host ''
+    Write-Host 'Токен GitHub не найден — в раздачу не заливаю, только на сетевой диск.' -ForegroundColor Yellow
+    Write-Host 'Удалённые дизайнеры эту версию не увидят. Токен спросит push-templates.cmd.'
+}
+
 Remove-Item $staging -Recurse -Force
 
 Write-Host ''

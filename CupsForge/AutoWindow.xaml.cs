@@ -275,13 +275,40 @@ namespace CupsForge
             UpdateBar.Visibility = Visibility.Visible;
         }
 
-        private void UpdateButton_Click(object sender, RoutedEventArgs e)
+        private async void UpdateButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_update == null)
-                return;
-
             UpdateButton.IsEnabled = false;
             UpdateText.Text = "Обновление…";
+
+            // Из раздачи: качаем по сети и подменяем.
+            if (_update == null && _distApp != null)
+            {
+                var (data, downloadError) = await DistributionClient.DownloadAppAsync(_distApp);
+                if (data == null)
+                {
+                    UpdateButton.IsEnabled = true;
+                    UpdateText.Text = $"Доступна версия {_distApp.Version}";
+                    Log(downloadError ?? "Не удалось скачать обновление.");
+                    return;
+                }
+
+                if (Updater.ApplyFile(data, out string applyError))
+                {
+                    Application.Current.Shutdown();
+                    return;
+                }
+
+                UpdateButton.IsEnabled = true;
+                UpdateText.Text = $"Доступна версия {_distApp.Version}";
+                Log(applyError);
+                return;
+            }
+
+            if (_update == null)
+            {
+                UpdateBar.Visibility = Visibility.Collapsed;
+                return;
+            }
 
             // Заменить работающий файл нельзя, поэтому подмену делает скрипт:
             // он ждёт закрытия программы и запускает её заново.

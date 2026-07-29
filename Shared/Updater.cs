@@ -130,13 +130,30 @@ namespace CupsCore
         /// </summary>
         public static bool Apply(ReleaseInfo release, out string error)
         {
-            error = "";
             try
             {
                 string source = Path.Combine(
                     PathResolver.Expand(MachineProfile.Current.UpdateSource),
                     release.Folder, "CupsForge.exe");
 
+                return ApplyFile(File.ReadAllBytes(source), out error);
+            }
+            catch (Exception ex)
+            {
+                error = "Не удалось обновиться: " + ex.Message;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Ставит уже полученную новую версию. Байты, а не путь: из раздачи
+        /// программа приезжает по сети, а не лежит в папке.
+        /// </summary>
+        public static bool ApplyFile(byte[] exe, out string error)
+        {
+            error = "";
+            try
+            {
                 string? current = Environment.ProcessPath;
                 if (string.IsNullOrEmpty(current))
                 {
@@ -160,7 +177,7 @@ namespace CupsCore
                 Directory.CreateDirectory(staging);
                 string staged = Path.Combine(staging, "CupsForge.exe");
 
-                File.Copy(source, staged, overwrite: true);
+                File.WriteAllBytes(staged, exe);
 
                 // Скрипт: подождать выхода, подменить файл, запустить снова, убрать себя.
                 //

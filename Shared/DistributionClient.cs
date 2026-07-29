@@ -173,6 +173,43 @@ namespace CupsCore
             return (done, null);
         }
 
+        /// <summary>
+        /// Есть ли в раздаче версия программы новее текущей. null — нет.
+        /// Этим канал закрывает и вторую половину задачи: новая кнопка в интерфейсе
+        /// доезжает до удалённого дизайнера так же сама, как правка шаблона.
+        /// </summary>
+        public static DistApp? NewerApp(DistManifest? manifest)
+        {
+            var app = manifest?.App;
+            if (app == null || string.IsNullOrWhiteSpace(app.Version))
+                return null;
+
+            return Updater.IsNewer(app.Version, Updater.CurrentVersion) ? app : null;
+        }
+
+        /// <summary>Качает новую версию программы и проверяет её по отпечатку.</summary>
+        public static async Task<(byte[]? data, string? error)> DownloadAppAsync(
+            DistApp app, CancellationToken ct = default)
+        {
+            try
+            {
+                string baseUrl = MachineProfile.Current.DistributionAssets.TrimEnd('/');
+                byte[] data = await Http.GetByteArrayAsync($"{baseUrl}/{app.Asset}", ct)
+                                        .ConfigureAwait(false);
+
+                // Программу подменяем на живой машине — проверка отпечатка тут
+                // не формальность.
+                if (!string.Equals(FileHash.OfBytes(data), app.Sha256, StringComparison.OrdinalIgnoreCase))
+                    return (null, "Файл скачался повреждённым, отпечаток не совпал.");
+
+                return (data, null);
+            }
+            catch (Exception ex)
+            {
+                return (null, "Не удалось скачать: " + ex.Message);
+            }
+        }
+
         private static void TryDelete(string path)
         {
             try { if (File.Exists(path)) File.Delete(path); } catch { }

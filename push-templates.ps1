@@ -72,23 +72,45 @@ function Get-Sha256([string] $path) {
 $files = @()
 $sourceRoot = (Resolve-Path $Templates).Path.TrimEnd('\')
 
+# --- Что не выкладывать ---
+# Мусор Windows отсекается всегда. Остальное — по желанию: рядом с шаблонами
+# можно положить .distignore, по строке на образец, и эти пути уедут мимо раздачи.
+# Пример: папка All весит 306 МБ и программе не нужна вовсе.
+$skip = @('Thumbs.db', 'desktop.ini', '*.tmp', '~$*')
+$ignorePath = Join-Path $sourceRoot '.distignore'
+if (Test-Path $ignorePath) {
+    $skip += (Get-Content $ignorePath | Where-Object { $_ -and -not $_.StartsWith('#') })
+    Write-Host "Исключения из .distignore: $($skip.Count - 4)"
+}
+
+function Test-Skip([string] $relative) {
+    foreach ($pattern in $skip) {
+        if ($relative -like $pattern -or (Split-Path $relative -Leaf) -like $pattern) { return $true }
+        # Образец без звёздочки, совпавший с началом пути, — это папка целиком.
+        if ($pattern -notmatch '[*?]' -and $relative -like "$pattern/*") { return $true }
+    }
+    return $false
+}
+
+$skipped = 0
 Write-Host 'Считаю отпечатки…'
 foreach ($f in Get-ChildItem $sourceRoot -Recurse -File) {
-    # Каталог кладём отдельной записью: программа обновляет его вместе с шаблонами.
-    $relative = $f.FullName.Substring($sourceRoot.Length + 1).Replace('\', '/')
+    $rel = $f.FullName.Substring($sourceRoot.Length + 1).Replace('\', '/')
+    if (Test-Skip $rel) { $skipped++; continue }
+
     $sha = Get-Sha256 $f.FullName
 
     # Имя вложения — из отпечатка, а не из имени файла: GitHub переименовывает
     # вложения с пробелами и кириллицей, и угадывать потом нечем.
     $files += [pscustomobject]@{
-        path   = $relative
+        path   = $rel
         asset  = 'f-' + $sha.Substring(0, 16) + [System.IO.Path]::GetExtension($f.Name).ToLower()
         size   = $f.Length
         sha256 = $sha
         source = $f.FullName
     }
 }
-Write-Host "Файлов у источника: $($files.Count)"
+Write-Host "Файлов к выкладке: $($files.Count) (пропущено: $skipped)"
 
 # --- Заливаем недостающее ---
 $uploaded = 0

@@ -27,6 +27,7 @@ public static class LogicChecks
         RemoteProfile(check);
         Regressions(check);
         CatalogSources(check);
+        ScriptEncodings(check);
         EndToEnd(check);
         Updates(check);
 
@@ -600,6 +601,42 @@ public static class LogicChecks
         Directory.Delete(sandbox, true);
         MachineProfile.Set(MachineProfile.CreateOfficeDefault());
         CatalogService.Reload();
+    }
+
+    /// <summary>
+    /// Кодировки скриптов. Windows PowerShell 5.1 читает .ps1 без BOM как ANSI —
+    /// кириллица разваливается, и сценарий не запускается вовсе. У .cmd наоборот:
+    /// BOM ломает первую строку. Наступали на это дважды, поэтому проверяем.
+    /// </summary>
+    private static void ScriptEncodings(Checker check)
+    {
+        check.Section("Кодировки скриптов");
+
+        // Ищем корень репозитория: прогон запускается из своей подпапки.
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "CupsForge.sln")))
+            dir = dir.Parent;
+
+        if (dir == null)
+        {
+            check.Info("корень репозитория не найден — проверка пропущена");
+            return;
+        }
+
+        byte[] bom = { 0xEF, 0xBB, 0xBF };
+
+        bool StartsWithBom(string path)
+        {
+            using var stream = File.OpenRead(path);
+            var head = new byte[3];
+            return stream.Read(head, 0, 3) == 3 && head.SequenceEqual(bom);
+        }
+
+        foreach (string path in Directory.GetFiles(dir.FullName, "*.ps1"))
+            check.True($"{Path.GetFileName(path)} — с BOM", StartsWithBom(path));
+
+        foreach (string path in Directory.GetFiles(dir.FullName, "*.cmd"))
+            check.True($"{Path.GetFileName(path)} — без BOM", !StartsWithBom(path));
     }
 
     /// <summary>Пустые файлы шаблонов там, где их ждёт каталог.</summary>

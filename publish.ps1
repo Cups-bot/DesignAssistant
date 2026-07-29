@@ -48,14 +48,13 @@ Copy-Item (Join-Path $root 'install.cmd') $Destination -Force
 Copy-Item (Join-Path $root 'install.ps1') $Destination -Force
 Write-Host "Установщик обновлён: $Destination\install.cmd"
 
-# Рабочий appsettings.json в репозиторий не входит. Если он есть рядом с проектом,
-# кладём его к версии — тогда установщик перенесёт доступ к Bitrix на новую машину.
-$settings = Join-Path $root 'CupsForge\appsettings.json'
-if (Test-Path $settings) {
-    Copy-Item $settings $target -Force
-    Write-Host 'Настройки доступа к Bitrix приложены к версии.'
-} else {
-    Write-Host 'ВНИМАНИЕ: appsettings.json не найден — доступ к Bitrix дизайнер введёт в настройках.' -ForegroundColor Yellow
+# appsettings.json к версии НЕ прикладывается. Раньше это был мост, пока в настройках
+# не было полей для ключа Bitrix. Поля есть, а раздача теперь может стать публичной —
+# и ключ вместе с ней. Каждый вводит его у себя: шестерёнка → ДОСТУП К BITRIX.
+$stray = Join-Path $target 'appsettings.json'
+if (Test-Path $stray) {
+    Remove-Item $stray -Force
+    Write-Host 'Убран appsettings.json, оставшийся от прошлой публикации.' -ForegroundColor Yellow
 }
 
 # --- Указатель на свежую версию ---

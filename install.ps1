@@ -39,14 +39,8 @@ try {
 }
 Write-Host "Установлено: $targetExe"
 
-# Настройки доступа к Bitrix, если они лежат рядом с раздачей.
-# Существующие не трогаем: там могут быть уже введённые данные.
-$settingsSource = Join-Path (Join-Path $release $latest.folder) 'appsettings.json'
-$settingsTarget = Join-Path $target 'appsettings.json'
-if ((Test-Path $settingsSource) -and -not (Test-Path $settingsTarget)) {
-    Copy-Item $settingsSource $settingsTarget
-    Write-Host 'Скопированы настройки доступа к Bitrix.'
-}
+# Доступ к Bitrix намеренно не переносится: раздача может быть публичной,
+# а ключ — нет. Дизайнер вводит его у себя один раз, в настройках программы.
 
 # --- Ярлык на рабочем столе ---
 $shortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'CupsForge.lnk'

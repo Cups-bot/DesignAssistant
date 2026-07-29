@@ -637,7 +637,68 @@ public static class LogicChecks
             check.True($"{Path.GetFileName(path)} — с BOM", StartsWithBom(path));
 
         foreach (string path in Directory.GetFiles(dir.FullName, "*.cmd"))
+        {
             check.True($"{Path.GetFileName(path)} — без BOM", !StartsWithBom(path));
+
+            // cmd.exe читает .cmd в кодировке консоли, а не в UTF-8. Кириллица
+            // в комментариях разваливается, и обломки иногда выглядят для cmd
+            // как разделитель команд — строка распадается, сыплются «не является
+            // внутренней или внешней командой». Поэтому в .cmd только латиница,
+            // а всё, что читает человек, печатает .ps1.
+            byte[] bytes = File.ReadAllBytes(path);
+            int offender = Array.FindIndex(bytes, b => b > 127);
+            check.True($"{Path.GetFileName(path)} — только латиница", offender < 0);
+            if (offender >= 0)
+                check.Info($"первый не-ASCII байт в позиции {offender}");
+        }
+
+        // BOM на месте — ещё не значит, что скрипт запустится. Кириллица, прочитанная
+        // как ANSI, разваливает разбор, а узнаётся это обычно в самый неподходящий
+        // момент. Поэтому спрашиваем сам PowerShell, читается ли файл целиком.
+        // Именно тот PowerShell, что стоит в системе, — 5.1 придирчивее нового.
+        ParsesInWindowsPowerShell(check, dir.FullName);
+    }
+
+    private static void ParsesInWindowsPowerShell(Checker check, string root)
+    {
+        const string script =
+            "$bad = 0; " +
+            "foreach ($f in Get-ChildItem -LiteralPath $args[0] -Filter *.ps1) { " +
+            "  $e = $null; " +
+            "  [void][System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$e); " +
+            "  if ($e) { Write-Output ($f.Name + ': ' + $e[0].Message); $bad++ } " +
+            "} " +
+            "if ($bad -eq 0) { Write-Output 'ok' }";
+
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            psi.ArgumentList.Add("-NoProfile");
+            psi.ArgumentList.Add("-NonInteractive");
+            psi.ArgumentList.Add("-Command");
+            psi.ArgumentList.Add(script);
+            psi.ArgumentList.Add(root);
+
+            using var proc = System.Diagnostics.Process.Start(psi)!;
+            string output = proc.StandardOutput.ReadToEnd().Trim();
+            proc.WaitForExit(30_000);
+
+            check.True("все .ps1 читаются PowerShell без ошибок", output == "ok");
+            if (output != "ok")
+                foreach (string line in output.Split('\n'))
+                    check.Info(line.Trim());
+        }
+        catch (Exception ex)
+        {
+            // Нет powershell.exe — не повод краснеть, но и молчать нельзя.
+            check.Info("разбор .ps1 пропущен: " + ex.Message);
+        }
     }
 
     /// <summary>

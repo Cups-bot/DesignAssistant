@@ -161,11 +161,22 @@ namespace CupsCore
 
         // ---------- расположение файла ----------
 
-        public static string DirectoryPath => Path.Combine(
+        private static string? _storageOverride;
+
+        public static string DirectoryPath => _storageOverride ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "CupsForge");
 
         public static string FilePath => Path.Combine(DirectoryPath, "profile.json");
+
+        /// <summary>
+        /// Увести хранение профиля в другую папку. Нужно ровно одному месту —
+        /// самопроверке: она открывает настоящее окно, а окно при нажатии на
+        /// панель сохраняет профиль на диск. Без подмены папки прогон затирал
+        /// профиль рабочего места путями во временную папку, которую сам же
+        /// потом и удалял. null — вернуть на место.
+        /// </summary>
+        public static void RedirectStorage(string? directory) => _storageOverride = directory;
 
         // ---------- загрузка / сохранение ----------
 

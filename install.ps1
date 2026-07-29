@@ -7,6 +7,16 @@
 
 $ErrorActionPreference = 'Stop'
 
+# Понятное сообщение вместо красной простыни PowerShell. Раньше его печатал
+# install.cmd, но в .cmd кириллице не место: cmd.exe читает файл в кодировке
+# консоли и ломает такие строки. Здесь — можно, .ps1 читается как UTF-8.
+trap {
+    Write-Host ''
+    Write-Host "Установка не завершена: $_" -ForegroundColor Red
+    Write-Host ''
+    exit 1
+}
+
 $release = $PSScriptRoot
 $target  = Join-Path $env:LOCALAPPDATA 'CupsForge'
 

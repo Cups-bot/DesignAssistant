@@ -9,7 +9,8 @@
 
 param(
     [string] $Destination = 'Y:\Soft\CupsForge\release',
-    [string] $Notes = ''
+    [string] $Notes = '',
+    [switch] $SkipDist
 )
 
 $ErrorActionPreference = 'Stop'
@@ -34,48 +35,70 @@ Write-Host 'Сборка…'
 dotnet publish (Join-Path $root 'CupsForge\CupsForge.csproj') -c Release -o $staging --nologo
 if ($LASTEXITCODE -ne 0) { throw 'Сборка не удалась.' }
 
-# --- Выкладка ---
-$target = Join-Path $Destination $version
-New-Item -ItemType Directory -Force -Path $target | Out-Null
-Copy-Item (Join-Path $staging 'CupsForge.exe') $target -Force
+# --- Выкладка на сетевой диск ---
+# Это офисный канал, и он есть не всегда: из дома Y: не виден вообще. Раньше
+# скрипт на этом падал — собрал, прогнал самопроверку и умер на копировании,
+# то есть выложить что-либо из дома было нельзя в принципе. А раздача, которая
+# и достаёт до всех, работает откуда угодно. Поэтому недоступный диск —
+# это предупреждение, а не остановка.
+$networkDone = $false
+$exe = Join-Path $staging 'CupsForge.exe'
+$root_ = Split-Path -Parent $Destination
 
-# Каталог кладётся в папку шаблонов, а не сюда: он бесполезен без .ai-файлов
-# и должен ехать к удалённым дизайнерам вместе с ними.
-Write-Host "Выложено: $target"
+if (Test-Path $root_) {
+    $target = Join-Path $Destination $version
+    New-Item -ItemType Directory -Force -Path $target | Out-Null
+    Copy-Item $exe $target -Force
+    Write-Host "Выложено: $target"
 
-# Установщик — рядом с раздачей, чтобы дизайнер запускал его прямо с сетевого диска.
-Copy-Item (Join-Path $root 'install.cmd') $Destination -Force
-Copy-Item (Join-Path $root 'install.ps1') $Destination -Force
-Write-Host "Установщик обновлён: $Destination\install.cmd"
+    # Установщик — рядом с раздачей, чтобы дизайнер запускал его прямо с диска.
+    Copy-Item (Join-Path $root 'install.cmd') $Destination -Force
+    Copy-Item (Join-Path $root 'install.ps1') $Destination -Force
+    Write-Host "Установщик обновлён: $Destination\install.cmd"
 
-# appsettings.json к версии НЕ прикладывается. Раньше это был мост, пока в настройках
-# не было полей для ключа Bitrix. Поля есть, а раздача теперь может стать публичной —
-# и ключ вместе с ней. Каждый вводит его у себя: шестерёнка → ДОСТУП К BITRIX.
-$stray = Join-Path $target 'appsettings.json'
-if (Test-Path $stray) {
-    Remove-Item $stray -Force
-    Write-Host 'Убран appsettings.json, оставшийся от прошлой публикации.' -ForegroundColor Yellow
+    # appsettings.json к версии НЕ прикладывается. Раньше это был мост, пока
+    # в настройках не было полей для ключа Bitrix. Поля есть, а раздача теперь
+    # публичная — и ключ уехал бы вместе с ней. Каждый вводит его у себя:
+    # шестерёнка → ДОСТУП К BITRIX.
+    $stray = Join-Path $target 'appsettings.json'
+    if (Test-Path $stray) {
+        Remove-Item $stray -Force
+        Write-Host 'Убран appsettings.json, оставшийся от прошлой публикации.' -ForegroundColor Yellow
+    }
+
+    # Указатель на свежую версию — по нему установщик понимает, что ставить.
+    $latest = [ordered] @{ version = $version; folder = $version; notes = $Notes }
+    $latestPath = Join-Path $Destination 'latest.json'
+    # Out-File -Encoding utf8 в Windows PowerShell дописывает BOM. Программа его
+    # переваривает, но JSON с BOM — источник сюрпризов, пишем без него.
+    [System.IO.File]::WriteAllText($latestPath, ($latest | ConvertTo-Json),
+                                   (New-Object System.Text.UTF8Encoding $false))
+    Write-Host "Обновлён указатель: $latestPath"
+    $networkDone = $true
+} else {
+    Write-Host ''
+    Write-Host "Сетевой диск недоступен: $Destination" -ForegroundColor Yellow
+    Write-Host 'Пропускаю — выкладываю только в раздачу. До удалённых дизайнеров'
+    Write-Host 'версия доедет, до офисных (они обновляются с диска) — нет.'
+    Write-Host 'Чтобы доехала и до них, запустите это же из офиса.'
 }
-
-# --- Указатель на свежую версию ---
-$latest = [ordered] @{ version = $version; folder = $version; notes = $Notes }
-$latestPath = Join-Path $Destination 'latest.json'
-# Out-File -Encoding utf8 в Windows PowerShell дописывает BOM. Программа его
-# переваривает, но JSON с BOM — источник сюрпризов, пишем без него.
-[System.IO.File]::WriteAllText($latestPath, ($latest | ConvertTo-Json),
-                               (New-Object System.Text.UTF8Encoding $false))
-Write-Host "Обновлён указатель: $latestPath"
 
 # --- Заливка в публичную раздачу ---
 # Без неё новая версия доедет только до офиса. Раздача — единственный канал,
 # который достаёт до домашних машин.
-$tokenPath = Join-Path $env:APPDATA 'CupsForge\github-token.txt'
-if (Test-Path $tokenPath) {
-    $token = (Get-Content $tokenPath -Raw).Trim()
-    $headers = @{ Authorization = "Bearer $token"; 'User-Agent' = 'CupsForge-Publisher'
-                  Accept = 'application/vnd.github+json' }
-    $repo = 'Cups-bot/CupsForge-public'
-    $tag  = 'dist'
+. (Join-Path $root 'dist-common.ps1')
+$ProgressPreference = 'SilentlyContinue'
+
+$repo = 'Cups-bot/CupsForge-public'
+$tag  = 'dist'
+if ($SkipDist) {
+    Write-Host ''
+    Write-Host 'В раздачу не заливаю (-SkipDist) — только на сетевой диск.' -ForegroundColor Yellow
+    Write-Host 'Удалённые дизайнеры эту версию не увидят.'
+} else {
+    $token = Get-DistToken -Repo $repo
+    $headers = New-DistHeaders $token
+    Assert-DistBootstrapped -Repo $repo -Headers $headers
 
     Write-Host ''
     Write-Host 'Заливаю программу в раздачу…'
@@ -87,7 +110,7 @@ if (Test-Path $tokenPath) {
             -Body (@{ tag_name = $tag; name = 'Раздача файлов' } | ConvertTo-Json)
     }
 
-    $exe = Join-Path $target 'CupsForge.exe'
+    # Берём файл из сборочной папки, а не с сетевого диска: диска может не быть.
     $sha = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
     $assetName = "app-$version.exe"
 
@@ -104,33 +127,36 @@ if (Test-Path $tokenPath) {
     $uploadUrl = ($release.upload_url -replace '\{.*$', '') + "?name=$assetName"
     Invoke-RestMethod -Headers $uploadHeaders -Method Post -Uri $uploadUrl -InFile $exe | Out-Null
 
-    # Опись: программу дописываем, шаблоны не трогаем — их ведёт push-templates.
-    $manifestPath = Join-Path $root 'manifest.json'
-    $manifest = if (Test-Path $manifestPath) {
-        Get-Content $manifestPath -Raw | ConvertFrom-Json
-    } else {
+    # Опись: дописываем ТОЛЬКО раздел app. Шаблоны и каталог ведёт push-templates,
+    # возможно с другой машины, — берём их из раздачи и кладём обратно как есть.
+    $current = Get-DistManifest -Repo $repo -Headers $headers
+    $doc = if ($current.doc) { $current.doc } else {
         [pscustomobject]@{ generated = ''; app = $null; catalog = $null; templates = @() }
     }
 
-    $manifest.generated = (Get-Date).ToString('s')
-    $manifest | Add-Member -NotePropertyName app -NotePropertyValue ([ordered]@{
+    $doc | Add-Member -NotePropertyName generated -NotePropertyValue (Get-Date).ToString('s') -Force
+    $doc | Add-Member -NotePropertyName app -NotePropertyValue ([ordered]@{
         version = $version; notes = $Notes; asset = $assetName
         size = (Get-Item $exe).Length; sha256 = $sha
     }) -Force
 
-    [System.IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json -Depth 6),
-                                   (New-Object System.Text.UTF8Encoding $false))
+    if (-not $doc.templates -or @($doc.templates).Count -eq 0) {
+        Write-Host 'В раздаче нет шаблонов — программа доедет, а шаблоны нет.' -ForegroundColor Yellow
+        Write-Host 'Запустите push-templates.cmd.'
+    }
+
+    Publish-DistManifest -Repo $repo -Headers $headers -Document $doc -Sha $current.sha `
+                         -Message "Программа $version"
     Write-Host "Программа в раздаче: $assetName"
-    Write-Host "Опись обновлена: $manifestPath"
-    Write-Host 'Не забудьте отправить опись: git add manifest.json && git commit && git push'
-} else {
-    Write-Host ''
-    Write-Host 'Токен GitHub не найден — в раздачу не заливаю, только на сетевой диск.' -ForegroundColor Yellow
-    Write-Host 'Удалённые дизайнеры эту версию не увидят. Токен спросит push-templates.cmd.'
+    Write-Host "Опись обновлена в $repo"
 }
 
 Remove-Item $staging -Recurse -Force
 
 Write-Host ''
-Write-Host 'Готово. У дизайнеров при следующем запуске появится полоска «Доступна версия».'
+if ($networkDone -or -not $SkipDist) {
+    Write-Host 'Готово. У дизайнеров при следующем запуске появится полоска «Доступна версия».'
+} else {
+    Write-Host 'Никуда не выложено: сетевого диска нет, в раздачу заливать запретили (-SkipDist).' -ForegroundColor Yellow
+}
 Write-Host 'Каталог продуктов обновляется отдельно — правкой catalog.json в папке шаблонов.'

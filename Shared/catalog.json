@@ -12,8 +12,8 @@
   // Схема рядом: VS Code будет подсказывать поля и подсвечивать опечатки.
   "$schema": "./catalog.schema.json",
 
-  "version": 1,
-  "updated": "2026-07-27",
+  "version": 2,
+  "updated": "2026-07-28",
 
   // Направления в порядке показа в ручном вводе. Порядок продуктов ниже задаёт
   // приоритет подбора и для списка не годится.
@@ -22,6 +22,43 @@
     { "id": "CuptoYou", "title": "CupToYou" },
     { "id": "Flexo",    "title": "Formacia (флексо)" }
   ],
+
+  // Как Bitrix называет значения. Побеждает САМОЕ ДЛИННОЕ совпадение, а не первое:
+  // «немелованный» содержит «мелован», а «Пластиковый стакан» — и «пластик», и «стакан».
+  // Появилось новое написание — дописать сюда, пересобирать программу не нужно.
+  "bitrixWords": {
+
+    "brand": {
+      "CuptoYou": ["cupto", "cupsto"],
+      "Flexo":    ["formacia", "flexo", "флекс"],
+      "MyCups":   ["mycups", "my cups"]
+    },
+
+    "printTech": {
+      "Offset":  ["офсет", "offset"],
+      "Digital": ["цифр", "digital"],
+      // Тампопечать — способ для пластика. В args.txt для него всё равно
+      // подставляется pantone (см. argsTech у продукта mycups-plastic).
+      "Pantone": ["pantone", "пантон", "флексо", "flexo", "тампопечать", "тампо"]
+    },
+
+    "material": {
+      "Uncoated": ["немелован", "крафт", "uncoated"],
+      "Coated":   ["мелован", "coated"]
+    },
+
+    "coating": {
+      "SoftTouch":  ["soft touch", "soft"],
+      "ColorTouch": ["color touch", "color"]
+    },
+
+    "country": {
+      "TR": ["turk", "тур", "tr"],
+      "DE": ["deutsch", "germ", "нем", "de"],
+      "EN": ["engl", "англ", "en"],
+      "IT": ["ital", "итал", "it"]
+    }
+  },
 
   // Таблицы «артикул → файл шаблона». Вынесены отдельно, потому что одна и та же
   // таблица используется несколькими продуктами.
@@ -164,7 +201,7 @@
     {
       "id": "mycups-plastic",
       "typeTitle": "Пластик",
-      "typeKeywords": ["пластик"],
+      "typeKeywords": ["пластиковый стакан", "пластик"],
       "title": "MyCups — пластик (PadPrint)",
       "brand": "MyCups",
       "productType": "Plastic",

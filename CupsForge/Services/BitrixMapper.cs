@@ -81,54 +81,47 @@ namespace CupsForge.Services
             return resolved;
         }
 
-        private static bool Has(string? s, string sub) =>
-            !string.IsNullOrEmpty(s) && s.Contains(sub, StringComparison.OrdinalIgnoreCase);
+        // Слов, по которым распознаются значения, здесь больше нет: они лежат
+        // в каталоге, рядом с шаблонами. Новое написание из Bitrix («Тампопечать»)
+        // добавляется правкой catalog.json, без пересборки программы.
 
         public static Brand MapBrand(string? project, List<string> warnings)
         {
-            if (Has(project, "cupto") || Has(project, "cupsto")) return Brand.CuptoYou;
-            if (Has(project, "formacia") || Has(project, "flexo") || Has(project, "флекс")) return Brand.Flexo;
-            if (Has(project, "mycups") || Has(project, "my cups")) return Brand.MyCups;
+            var found = Catalog.EnumFromWords<Brand>(CatalogService.Current.Words.Brand, project);
+            if (found.HasValue)
+                return found.Value;
+
             warnings.Add($"Направление \"{project}\" не распознано — принято как MyCups.");
             return Brand.MyCups;
         }
 
-        public static Country MapCountry(string? lang)
-        {
-            string s = (lang ?? "").Trim().ToLowerInvariant();
-            if (s.StartsWith("tr") || s.Contains("turk") || s.Contains("тур")) return Country.TR;
-            if (s.StartsWith("de") || s.Contains("germ") || s.Contains("deutsch") || s.Contains("нем")) return Country.DE;
-            if (s.StartsWith("it") || s.Contains("ital") || s.Contains("итал")) return Country.IT;
-            if (s.StartsWith("en") || s.Contains("engl") || s.Contains("англ")) return Country.EN;
-            return Country.TR;
-        }
+        public static Country MapCountry(string? lang) =>
+            Catalog.EnumFromWords<Country>(CatalogService.Current.Words.Country, lang) ?? Country.TR;
 
         public static PrintTech MapPrintTech(string? print, List<string> warnings)
         {
-            if (Has(print, "офсет") || Has(print, "offset"))  return PrintTech.Offset;
-            if (Has(print, "цифр") || Has(print, "digital"))  return PrintTech.Digital;
-            if (Has(print, "pantone") || Has(print, "пантон") || Has(print, "флексо") || Has(print, "flexo"))
-                return PrintTech.Pantone;
-            warnings.Add($"Способ печати \"{print}\" не распознан — принят как «Офсет».");
+            var found = Catalog.EnumFromWords<PrintTech>(CatalogService.Current.Words.PrintTech, print);
+            if (found.HasValue)
+                return found.Value;
+
+            warnings.Add($"Способ печати \"{print}\" не распознан — принят как «Офсет». " +
+                         "Добавьте это название в catalog.json, раздел bitrixWords.");
             return PrintTech.Offset;
         }
 
         public static Material MapMaterial(string? side, List<string> warnings)
         {
-            // Порядок важен: "uncoated" содержит подстроку "coated".
-            if (Has(side, "немелован") || Has(side, "крафт") || Has(side, "uncoated")) return Material.Uncoated;
-            if (Has(side, "мелован") || Has(side, "coated")) return Material.Coated;
-            if (string.IsNullOrWhiteSpace(side)) return Material.Uncoated;
-            warnings.Add($"Материал \"{side}\" не распознан — принят как «Uncoated».");
+            var found = Catalog.EnumFromWords<Material>(CatalogService.Current.Words.Material, side);
+            if (found.HasValue)
+                return found.Value;
+
+            if (!string.IsNullOrWhiteSpace(side))
+                warnings.Add($"Материал \"{side}\" не распознан — принят как «Uncoated».");
             return Material.Uncoated;
         }
 
-        public static Coating MapCoating(string? coating)
-        {
-            if (Has(coating, "soft"))  return Coating.SoftTouch;
-            if (Has(coating, "color")) return Coating.ColorTouch;
-            return Coating.None;
-        }
+        public static Coating MapCoating(string? coating) =>
+            Catalog.EnumFromWords<Coating>(CatalogService.Current.Words.Coating, coating) ?? Coating.None;
 
         // Вкусы шоколада и виды конфет раньше распознавались здесь двумя switch'ами.
         // Теперь слова лежат в каталоге рядом с файлами шаблонов — см. Catalog.VariantFromText.

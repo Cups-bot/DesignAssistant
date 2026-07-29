@@ -172,6 +172,38 @@ public static class LogicChecks
         check.True("незнакомый тип не распознаётся",
             catalog.ProductTypeFromText(Brand.MyCups, "Нечто неизвестное") == null);
 
+        // Заказ 1879395 «132736 Арчи PG95-400»: тип уходил в стаканы, потому что
+        // «Пластиковый стакан» содержит и «пластик», и «стакан», а побеждало первое
+        // по порядку. Теперь побеждает самое длинное совпадение.
+        check.Equal("«Пластиковый стакан» → Plastic, а не Cups",
+            catalog.ProductTypeFromText(Brand.MyCups, "Пластиковый стакан"), "Plastic");
+        check.Equal("«Бумажный стакан» по-прежнему Cups",
+            catalog.ProductTypeFromText(Brand.MyCups, "Бумажный стакан"), "Cups");
+
+        // Способ печати переехал в каталог: «Тампопечать» раньше не распознавалась.
+        var warnings = new List<string>();
+        check.Equal("«Тампопечать» распознаётся",
+            CupsForge.Services.BitrixMapper.MapPrintTech("Тампопечать", warnings).ToString(), "Pantone");
+        check.True("и не выдаёт предупреждения", warnings.Count == 0);
+        check.Equal("«Офсет» по-прежнему Offset",
+            CupsForge.Services.BitrixMapper.MapPrintTech("Офсет", warnings).ToString(), "Offset");
+        check.Equal("«Цифровая печать» по-прежнему Digital",
+            CupsForge.Services.BitrixMapper.MapPrintTech("Цифровая печать", warnings).ToString(), "Digital");
+
+        // «немелованный» содержит «мелован» — без правила самого длинного слова
+        // материал определялся бы наоборот.
+        check.Equal("«Белый мелованный» → Coated",
+            CupsForge.Services.BitrixMapper.MapMaterial("Белый мелованный", warnings).ToString(), "Coated");
+        check.Equal("«Немелованный» → Uncoated",
+            CupsForge.Services.BitrixMapper.MapMaterial("Немелованный", warnings).ToString(), "Uncoated");
+
+        check.Equal("направление «mycups» → MyCups",
+            CupsForge.Services.BitrixMapper.MapBrand("mycups", warnings).ToString(), "MyCups");
+        check.Equal("страна «Turkish» → TR",
+            CupsForge.Services.BitrixMapper.MapCountry("Turkish").ToString(), "TR");
+        check.Equal("страна «Italian» → IT",
+            CupsForge.Services.BitrixMapper.MapCountry("Italian").ToString(), "IT");
+
         var choko = catalog.Require(new DesignSpec { Brand = Brand.MyCups, ProductType = "Choko" });
         check.Equal("вкус «Dark» → Dark", CupsCore.Catalog.VariantFromText(choko, "Dark"), "Dark");
         check.Equal("вкус «тёмный» → Dark", CupsCore.Catalog.VariantFromText(choko, "тёмный шоколад"), "Dark");

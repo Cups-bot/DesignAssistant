@@ -29,6 +29,18 @@
         }
       }
     },
+    "bitrixWords": {
+      "type": "object",
+      "description": "Слова, которыми Bitrix называет значения. Побеждает самое длинное совпадение.",
+      "additionalProperties": false,
+      "properties": {
+        "brand":     { "$ref": "#/definitions/wordTable" },
+        "printTech": { "$ref": "#/definitions/wordTable" },
+        "material":  { "$ref": "#/definitions/wordTable" },
+        "coating":   { "$ref": "#/definitions/wordTable" },
+        "country":   { "$ref": "#/definitions/wordTable" }
+      }
+    },
     "articleTables": {
       "type": "object",
       "description": "Таблицы «артикул → файл шаблона», общие для нескольких продуктов.",
@@ -45,6 +57,11 @@
     }
   },
   "definitions": {
+    "wordTable": {
+      "type": "object",
+      "description": "Имя значения → слова, по которым его узнавать.",
+      "additionalProperties": { "type": "array", "items": { "type": "string" } }
+    },
     "product": {
       "type": "object",
       "required": ["id", "brand", "output"],

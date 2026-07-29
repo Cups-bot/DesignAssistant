@@ -37,6 +37,14 @@ namespace CupsCore
         [JsonPropertyName("products")]
         public List<CatalogProduct> Products { get; set; } = new();
 
+        /// <summary>
+        /// Слова, которыми Bitrix называет направления, способы печати и прочее.
+        /// Раньше они были зашиты в коде, и каждое новое значение («Тампопечать»)
+        /// означало пересборку. Теперь достаточно дописать строчку сюда.
+        /// </summary>
+        [JsonPropertyName("bitrixWords")]
+        public BitrixWords Words { get; set; } = new();
+
         /// <summary>Откуда каталог загружен — показывается пользователю.</summary>
         [JsonIgnore]
         public string SourceName { get; set; } = "";
@@ -72,21 +80,69 @@ namespace CupsCore
 
             string brandName = brand.ToString();
 
-            // Сначала продукты своего направления, потом любые — так «пластик»
-            // не перехватит чужой продукт с тем же словом.
+            // Побеждает САМОЕ ТОЧНОЕ слово, а не первое по порядку.
+            // «Пластиковый стакан» содержит и «пластик», и «стакан»; при выборе
+            // по порядку выигрывали стаканы, и заказ уходил не в ту папку.
+            // Более длинное совпадение — более конкретное, поэтому берём его.
             foreach (bool sameBrandOnly in new[] { true, false })
             {
+                string? best = null;
+                int bestLength = 0;
+
                 foreach (var p in Products)
                 {
                     if (string.IsNullOrWhiteSpace(p.ProductType))
                         continue;
                     if (sameBrandOnly && !string.Equals(p.Brand, brandName, StringComparison.OrdinalIgnoreCase))
                         continue;
-                    if (p.MatchesTypeText(text))
-                        return p.ProductType;
+
+                    int length = p.LongestTypeKeywordIn(text);
+                    if (length > bestLength)
+                    {
+                        bestLength = length;
+                        best = p.ProductType;
+                    }
                 }
+
+                if (best != null)
+                    return best;
             }
             return null;
+        }
+
+        /// <summary>
+        /// Значение перечисления по тексту из Bitrix и словарю слов из каталога.
+        /// Побеждает самое длинное совпадение: «немелованный» содержит «мелован»,
+        /// и без этого правила материал определялся бы наоборот.
+        /// null — ничего не подошло.
+        /// </summary>
+        public static T? EnumFromWords<T>(Dictionary<string, List<string>> words, string? text)
+            where T : struct, Enum
+        {
+            if (string.IsNullOrWhiteSpace(text) || words.Count == 0)
+                return null;
+
+            T? best = null;
+            int bestLength = 0;
+
+            foreach (var (name, keywords) in words)
+            {
+                if (!Enum.TryParse<T>(name, true, out var value) || keywords == null)
+                    continue;
+
+                foreach (string keyword in keywords)
+                {
+                    if (string.IsNullOrWhiteSpace(keyword) || keyword.Length <= bestLength)
+                        continue;
+                    if (text.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+                    {
+                        bestLength = keyword.Length;
+                        best = value;
+                    }
+                }
+            }
+
+            return best;
         }
 
         /// <summary>
@@ -361,6 +417,29 @@ namespace CupsCore
             string.Join(", ", Enum.GetNames<T>());
     }
 
+    /// <summary>
+    /// Словари слов, которыми Bitrix называет значения. Ключ — имя значения
+    /// перечисления, список — слова, по которым его узнавать (сравнение по вхождению,
+    /// без учёта регистра).
+    /// </summary>
+    public sealed class BitrixWords
+    {
+        [JsonPropertyName("brand")]
+        public Dictionary<string, List<string>> Brand { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+        [JsonPropertyName("printTech")]
+        public Dictionary<string, List<string>> PrintTech { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+        [JsonPropertyName("material")]
+        public Dictionary<string, List<string>> Material { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+        [JsonPropertyName("coating")]
+        public Dictionary<string, List<string>> Coating { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+        [JsonPropertyName("country")]
+        public Dictionary<string, List<string>> Country { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    }
+
     /// <summary>Направление в списке ручного ввода.</summary>
     public sealed class CatalogBrand
     {
@@ -481,14 +560,28 @@ namespace CupsCore
         }
 
         /// <summary>Упоминается ли в тексте одно из ключевых слов типа продукта.</summary>
-        public bool MatchesTypeText(string? text)
+        public bool MatchesTypeText(string? text) => LongestTypeKeywordIn(text) > 0;
+
+        /// <summary>
+        /// Длина самого длинного ключевого слова этого продукта, найденного в тексте.
+        /// 0 — не совпало. По этой длине выбирается самый точный продукт из нескольких.
+        /// </summary>
+        public int LongestTypeKeywordIn(string? text)
         {
             if (string.IsNullOrWhiteSpace(text) || TypeKeywords == null)
-                return false;
+                return 0;
 
-            return TypeKeywords.Any(k =>
-                !string.IsNullOrWhiteSpace(k) &&
-                text.Contains(k, StringComparison.OrdinalIgnoreCase));
+            int best = 0;
+            foreach (string keyword in TypeKeywords)
+            {
+                if (!string.IsNullOrWhiteSpace(keyword) &&
+                    keyword.Length > best &&
+                    text.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+                {
+                    best = keyword.Length;
+                }
+            }
+            return best;
         }
     }
 

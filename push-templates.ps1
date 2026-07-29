@@ -16,11 +16,16 @@ param(
     [string] $Templates = 'Y:\STAKANY\_Templates',
     [string] $Repo = 'Cups-bot/CupsForge-public',
     [string] $Tag = 'dist',
+    [string] $Manifest = '',
     [switch] $Prune
 )
 
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
+
+# Опись коммитится в репозиторий раздачи. Скрипт при этом может лежать где угодно —
+# хоть рядом с шаблонами, — поэтому путь к описи задаётся отдельно.
+if (-not $Manifest) { $Manifest = Join-Path $root 'manifest.json' }
 
 # --- Токен ---
 # Лежит в профиле пользователя, рядом с настройками программы, и в git не попадает.
@@ -76,11 +81,12 @@ $sourceRoot = (Resolve-Path $Templates).Path.TrimEnd('\')
 # Мусор Windows отсекается всегда. Остальное — по желанию: рядом с шаблонами
 # можно положить .distignore, по строке на образец, и эти пути уедут мимо раздачи.
 # Пример: папка All весит 306 МБ и программе не нужна вовсе.
-$skip = @('Thumbs.db', 'desktop.ini', '*.tmp', '~$*')
+$skip = @('Thumbs.db', 'desktop.ini', '*.tmp', '~$*',
+         'push-templates.*', 'manifest.json', '.distignore')
 $ignorePath = Join-Path $sourceRoot '.distignore'
 if (Test-Path $ignorePath) {
     $skip += (Get-Content $ignorePath | Where-Object { $_ -and -not $_.StartsWith('#') })
-    Write-Host "Исключения из .distignore: $($skip.Count - 4)"
+    Write-Host "Исключения из .distignore: $($skip.Count - 7)"
 }
 
 function Test-Skip([string] $relative) {
@@ -145,7 +151,7 @@ $manifest = [ordered]@{
 }
 
 # Сведения о программе берём из прошлой описи — их пишет publish, не этот скрипт.
-$manifestPath = Join-Path $root 'manifest.json'
+$manifestPath = $Manifest
 if (Test-Path $manifestPath) {
     $previous = Get-Content $manifestPath -Raw | ConvertFrom-Json
     if ($previous.app) { $manifest.app = $previous.app }

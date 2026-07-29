@@ -127,6 +127,27 @@ namespace CupsCore
         public string UpdateSource { get; set; } = @"{base}\..\Soft\CupsForge\release";
 
         /// <summary>
+        /// Опись раздачи — единственный адрес, по которому программа ходит в сеть
+        /// за обновлениями. Раздача открыта на чтение, ключей не требует.
+        /// Пустая строка — не проверять обновления из интернета.
+        /// </summary>
+        [JsonPropertyName("distributionUrl")]
+        public string DistributionUrl { get; set; } =
+            "https://raw.githubusercontent.com/Cups-bot/CupsForge-public/main/manifest.json";
+
+        /// <summary>Где лежат сами файлы раздачи (вложения выпуска).</summary>
+        [JsonPropertyName("distributionAssets")]
+        public string DistributionAssets { get; set; } =
+            "https://github.com/Cups-bot/CupsForge-public/releases/download/dist";
+
+        /// <summary>
+        /// Обновлять шаблоны молча. Выключено до первого согласия: первая загрузка
+        /// весит сотни мегабайт, и тянуть их без спроса на домашнем интернете нельзя.
+        /// </summary>
+        [JsonPropertyName("autoSyncTemplates")]
+        public bool AutoSyncTemplates { get; set; }
+
+        /// <summary>
         /// Доступ к Bitrix. Живёт здесь, а не в appsettings.json рядом с exe:
         /// appsettings лежит в git-репозитории, а это учётные данные к API,
         /// доступному из интернета.
@@ -221,6 +242,9 @@ namespace CupsCore
                 JsxScript = JsxScript,
                 CatalogPath = CatalogPath,
                 UpdateSource = UpdateSource,
+                DistributionUrl = DistributionUrl,
+                DistributionAssets = DistributionAssets,
+                AutoSyncTemplates = AutoSyncTemplates,
                 SpecPanelExpanded = SpecPanelExpanded,
                 Bitrix = new BitrixAccess
                 {

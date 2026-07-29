@@ -195,6 +195,22 @@
                 </Grid>
             </Border>
 
+            <!-- Обновление шаблонов из раздачи. Первый раз спрашиваем — там сотни
+                 мегабайт; дальше тянем молча и показываем эту полоску лишь на время. -->
+            <Border x:Name="SyncBar" Grid.Row="0" Visibility="Collapsed" Panel.ZIndex="3"
+                    CornerRadius="10" Padding="10,5" Margin="0,30,0,0"
+                    Background="#0B2438" BorderBrush="#1D4ED8" BorderThickness="1">
+                <Grid>
+                    <TextBlock x:Name="SyncText" Foreground="{StaticResource TextMain}"
+                               FontFamily="{StaticResource Reg}" FontSize="11.5"
+                               VerticalAlignment="Center" HorizontalAlignment="Left"
+                               TextTrimming="CharacterEllipsis" MaxWidth="290"/>
+                    <Button x:Name="SyncButton" Style="{StaticResource FlatText}"
+                            Content="Скачать" Foreground="{StaticResource Accent}"
+                            HorizontalAlignment="Right" Click="SyncButton_Click"/>
+                </Grid>
+            </Border>
+
             <!-- Каталог взят не оттуда, откуда ждали: правки файла не действуют.
                  Молчать об этом нельзя — со стороны выглядит как «замена не помогает». -->
             <Border x:Name="CatalogWarningBar" Grid.Row="0" Visibility="Collapsed" Panel.ZIndex="2"

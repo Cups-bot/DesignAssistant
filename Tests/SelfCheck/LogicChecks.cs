@@ -28,6 +28,7 @@ public static class LogicChecks
         Regressions(check);
         CatalogSources(check);
         ScriptEncodings(check);
+        Distribution(check);
         EndToEnd(check);
         Updates(check);
 
@@ -637,6 +638,77 @@ public static class LogicChecks
 
         foreach (string path in Directory.GetFiles(dir.FullName, "*.cmd"))
             check.True($"{Path.GetFileName(path)} — без BOM", !StartsWithBom(path));
+    }
+
+    /// <summary>
+    /// Докачка из раздачи. Главное свойство: качается только отличающееся.
+    /// Если сломается — дизайнер будет тянуть 400 МБ на каждую правку.
+    /// </summary>
+    private static void Distribution(Checker check)
+    {
+        check.Section("Обновление из раздачи");
+
+        string sandbox = Path.Combine(Path.GetTempPath(), "cupsforge_selfcheck_dist");
+        if (Directory.Exists(sandbox)) Directory.Delete(sandbox, true);
+
+        var profile = MachineProfile.FromStakanyRoot(Path.Combine(sandbox, "STAKANY"));
+        MachineProfile.Set(profile);
+        string templates = PathResolver.Root(MachineProfile.Root.Templates);
+        Directory.CreateDirectory(Path.Combine(templates, "2_Offset"));
+
+        // Два файла у себя: один совпадает с раздачей, второй устарел.
+        string same = Path.Combine(templates, "2_Offset", "same.ai");
+        string old = Path.Combine(templates, "2_Offset", "old.ai");
+        File.WriteAllText(same, "одинаковый");
+        File.WriteAllText(old, "старая версия");
+
+        var manifest = new DistManifest
+        {
+            Templates =
+            {
+                new DistFile { Path = "2_Offset/same.ai", Sha256 = FileHash.Of(same), Size = 10, Asset = "f-1.ai" },
+                new DistFile { Path = "2_Offset/old.ai",  Sha256 = FileHash.OfBytes(System.Text.Encoding.UTF8.GetBytes("новая версия")), Size = 12, Asset = "f-2.ai" },
+                new DistFile { Path = "7_Plastic/new.ai", Sha256 = "abc", Size = 20, Asset = "f-3.ai" }
+            }
+        };
+
+        var state = new SyncState();
+        var plan = DistributionClient.Compare(manifest, state);
+
+        check.Equal("к загрузке отобраны только изменившиеся",
+            plan.Files.Count.ToString(), "2");
+        check.True("совпадающий файл не качается",
+            !plan.Files.Any(f => f.Path.EndsWith("same.ai")));
+        check.True("устаревший качается",
+            plan.Files.Any(f => f.Path.EndsWith("old.ai")));
+        check.True("отсутствующий качается",
+            plan.Files.Any(f => f.Path.EndsWith("new.ai")));
+        check.True("первая загрузка распознана", plan.IsFirstSync);
+
+        // Совпавший файл занесён в состояние — второй раз его не хешируем.
+        check.True("совпадение запомнено в состоянии",
+            state.Files.ContainsKey("2_Offset/same.ai"));
+
+        // Повторное сравнение с заполненным состоянием ничего не меняет.
+        var again = DistributionClient.Compare(manifest, state);
+        check.Equal("повторная проверка даёт тот же список",
+            again.Files.Count.ToString(), "2");
+
+        // Всё скачано — плана нет.
+        foreach (var f in manifest.Templates)
+            state.Files[f.Path] = f.Sha256;
+        File.WriteAllText(old, "новая версия");
+        Directory.CreateDirectory(Path.Combine(templates, "7_Plastic"));
+        File.WriteAllText(Path.Combine(templates, "7_Plastic", "new.ai"), "x");
+        check.True("когда всё на месте — качать нечего",
+            DistributionClient.Compare(manifest, state).IsEmpty);
+
+        check.Equal("объём считается для вопроса пользователю",
+            new SyncPlan { Files = { new DistFile { Size = 3 * 1024 * 1024 } } }.Describe(),
+            "1 файл(ов), 3 МБ");
+
+        Directory.Delete(sandbox, true);
+        MachineProfile.Set(MachineProfile.CreateOfficeDefault());
     }
 
     /// <summary>Пустые файлы шаблонов там, где их ждёт каталог.</summary>

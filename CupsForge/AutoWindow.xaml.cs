@@ -27,6 +27,7 @@ namespace CupsForge
                 SetSpecExpanded(MachineProfile.Current.SpecPanelExpanded, remember: false);
                 ReportCatalog();
                 CheckForUpdate();
+                CheckDistribution();
             };
         }
 

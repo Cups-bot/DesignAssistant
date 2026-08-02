@@ -37,29 +37,57 @@ namespace CupsCore
         /// <returns>true — можно работать дальше.</returns>
         public static bool EnsureConfigured(Window owner)
         {
-            // Решает наличие рабочих папок, а не наличие файла профиля.
-            // Раньше сохранённый профиль отключал мастер навсегда: сменилась буква
-            // диска — и вернуться к настройке было уже неоткуда.
-            var missing = MachineProfile.Current.FindMissingRoots();
-            if (missing.Count == 0 && MachineProfile.LoadProblem == null)
+            if (!NeedsWizard(out string message))
                 return true;
 
+            // Шов для самопроверки: показать модальное окно она не может — закрыть
+            // его в прогоне некому, и прогон повиснет. Подменяется только сам показ
+            // диалога, решение о необходимости мастера остаётся настоящим.
+            if (WizardOverride != null)
+                return WizardOverride(owner);
+
             var window = new SettingsWindow { Owner = owner };
-
-            if (MachineProfile.LoadProblem != null)
-                window.ShowMessage(MachineProfile.LoadProblem + " Проверьте папки.");
-            else if (MachineProfile.ExistsOnDisk)
-                window.ShowMessage(
-                    "Не найдены рабочие папки: " +
-                    string.Join(", ", missing.Select(MachineProfile.Root.Title)) +
-                    ". Возможно, изменилась буква диска или папку перенесли.");
-            else
-                window.ShowMessage(
-                    "Похоже, это первый запуск на новой машине: рабочих папок по стандартным путям нет. " +
-                    "Укажите, где они лежат здесь.");
-
+            window.ShowMessage(message);
             return window.ShowDialog() == true;
         }
+
+        /// <summary>
+        /// Нужен ли сейчас мастер и что сказать человеку.
+        ///
+        /// Решает наличие рабочих папок, а не наличие файла профиля. Раньше
+        /// сохранённый профиль отключал мастер навсегда: сменилась буква диска —
+        /// и вернуться к настройке было уже неоткуда.
+        ///
+        /// Вынесено отдельно от показа окна, чтобы решение можно было проверить
+        /// прогоном: логика в модальном диалоге непроверяема по определению.
+        /// </summary>
+        public static bool NeedsWizard(out string message)
+        {
+            var missing = MachineProfile.Current.FindMissingRoots();
+            if (missing.Count == 0 && MachineProfile.LoadProblem == null)
+            {
+                message = "";
+                return false;
+            }
+
+            if (MachineProfile.LoadProblem != null)
+                message = MachineProfile.LoadProblem + " Проверьте папки.";
+            else if (MachineProfile.ExistsOnDisk)
+                message = "Не найдены рабочие папки: " +
+                          string.Join(", ", missing.Select(MachineProfile.Root.Title)) +
+                          ". Возможно, изменилась буква диска или папку перенесли.";
+            else
+                message = "Похоже, это первый запуск на новой машине: рабочих папок по стандартным путям нет. " +
+                          "Укажите, где они лежат здесь.";
+
+            return true;
+        }
+
+        /// <summary>
+        /// Подменяет показ мастера. Ставит только самопроверка; в рабочей сборке
+        /// всегда null. <c>false</c> означает «человек нажал Отмену».
+        /// </summary>
+        public static Func<Window, bool>? WizardOverride { get; set; }
 
         public SettingsWindow(MachineProfile profile)
         {

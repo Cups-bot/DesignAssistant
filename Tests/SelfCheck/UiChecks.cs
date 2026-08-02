@@ -92,6 +92,11 @@ public static class UiChecks
         pencil.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
         check.True("карандаш раскрывает ручную панель", manual?.Visibility == Visibility.Visible);
 
+        // Встречная проверка к запрету ниже: на настроенном рабочем месте ручной
+        // ввод обязан работать. Иначе «починка» кнопки выключила бы её всем.
+        check.True("на настроенном месте ручной ввод разрешает «Создать проект»",
+                   (w.FindName("BuildButton") as Button)?.IsEnabled == true);
+
         // Списки строятся из каталога, поэтому проверяем именно их содержимое.
         check.Equal("направления из каталога", Items(w, "BrandCombo"),
                     "MyCups, CupToYou, Formacia (флексо)");
@@ -123,6 +128,8 @@ public static class UiChecks
             check.True("шоколад → строка «Материал» скрыта", !Visible(w, "MaterialCombo"));
         }
 
+        WizardCancelled(check);
+
         // Панель проверки данных должна сворачиваться.
         if (w.FindName("SpecBody") is Grid body && w.FindName("SpecToggle") is Button toggle)
         {
@@ -132,6 +139,60 @@ public static class UiChecks
             check.Equal("шеврон меняется",
                         (w.FindName("SpecChevron") as TextBlock)?.Text,
                         body.Visibility == Visibility.Visible ? "⌃" : "⌄");
+        }
+    }
+
+    /// <summary>
+    /// Отмена мастера настройки должна что-то менять. Раньше EnsureConfigured
+    /// возвращал признак, который никто не проверял: человек жал «Отмена»,
+    /// окно открывалось как ни в чём не бывало, «Создать проект» звало сборщик
+    /// с несуществующими папками — и вместо «настройте рабочее место» дизайнер
+    /// получал ошибку про ненайденный файл шаблона.
+    /// </summary>
+    private static void WizardCancelled(Checker check)
+    {
+        MachineProfile saved = MachineProfile.Current;
+        try
+        {
+            // Профиль с заведомо отсутствующими папками — мастер обязан понадобиться.
+            MachineProfile.Set(MachineProfile.FromStakanyRoot(
+                Path.Combine(Path.GetTempPath(), "cupsforge_selfcheck_ui", "нет-такой-папки")));
+
+            check.True("без рабочих папок мастер нужен", SettingsWindow.NeedsWizard(out string why));
+            check.True("причина названа словами", !string.IsNullOrWhiteSpace(why));
+
+            // Имитируем «Отмена» — показать настоящий диалог прогон не может.
+            SettingsWindow.WizardOverride = _ => false;
+            var window = new AutoWindow();
+            try
+            {
+                window.Show();
+                check.True("отмена мастера гасит «Создать проект»",
+                    (window.FindName("BuildButton") as Button)?.IsEnabled == false);
+                check.True("отмена мастера объясняется на экране",
+                    (window.FindName("SetupWarningBar") as UIElement)?.Visibility == Visibility.Visible);
+
+                // Настоящая ловушка: кнопка выключена и так, по разметке. Но карандаш
+                // включал её безусловно — и «Создать проект» звал сборщик с папками,
+                // которых нет. Ручной ввод не обходит ненастроенное рабочее место.
+                (window.FindName("PencilButton") as Button)?
+                    .RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                check.True("ручной ввод не обходит ненастроенное рабочее место",
+                    (window.FindName("BuildButton") as Button)?.IsEnabled == false);
+            }
+            finally
+            {
+                window.Close();
+            }
+        }
+        catch (Exception ex)
+        {
+            check.Fail("проверка отмены мастера сорвалась: " + ex.Message);
+        }
+        finally
+        {
+            SettingsWindow.WizardOverride = null;
+            MachineProfile.Set(saved);
         }
     }
 

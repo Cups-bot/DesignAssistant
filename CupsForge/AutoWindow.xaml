@@ -397,9 +397,25 @@
                 </StackPanel>
             </Border>
 
-            <!-- Кнопка создания -->
-            <Button x:Name="BuildButton" Grid.Row="4" Style="{StaticResource CreateButton}"
-                    Margin="0,12,0,0" Content="СОЗДАТЬ ПРОЕКТ" IsEnabled="False" Click="BuildButton_Click"/>
+            <!-- Кнопка создания. Над ней — причина, по которой создавать нельзя:
+                 гасить кнопку молча значит оставить человека без следующего шага. -->
+            <StackPanel Grid.Row="4">
+                <Border x:Name="SetupWarningBar" Visibility="Collapsed" Margin="0,12,0,0"
+                        CornerRadius="12" Padding="12,8"
+                        Background="#2A1B10" BorderBrush="#7C4A12" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock x:Name="SetupWarning" Foreground="#FBBF24"
+                                   FontFamily="{StaticResource Reg}" FontSize="11"
+                                   TextWrapping="Wrap"/>
+                        <Button x:Name="SetupOpenButton" Style="{StaticResource FlatText}"
+                                Margin="0,6,0,0" Content="Открыть настройки"
+                                Foreground="{StaticResource Accent}" Click="SettingsButton_Click"/>
+                    </StackPanel>
+                </Border>
+
+                <Button x:Name="BuildButton" Style="{StaticResource CreateButton}"
+                        Margin="0,12,0,0" Content="СОЗДАТЬ ПРОЕКТ" IsEnabled="False" Click="BuildButton_Click"/>
+            </StackPanel>
 
             <!-- Переключатель журнала -->
             <Button x:Name="ToggleLogButton" Grid.Row="5" Style="{StaticResource FlatText}"

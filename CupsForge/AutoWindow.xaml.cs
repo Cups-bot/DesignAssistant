@@ -23,7 +23,9 @@ namespace CupsForge
             // (первый запуск на домашнем компьютере). В офисе окно не появляется.
             Loaded += (_, _) =>
             {
-                SettingsWindow.EnsureConfigured(this);
+                // Возвращённый признак нельзя игнорировать: отказ от мастера
+                // означает, что рабочих папок нет, и создавать проект некуда.
+                ApplySetupState(SettingsWindow.EnsureConfigured(this));
                 SetSpecExpanded(MachineProfile.Current.SpecPanelExpanded, remember: false);
                 ReportCatalog();
                 CheckForUpdate();
@@ -31,11 +33,55 @@ namespace CupsForge
             };
         }
 
+        /// <summary>
+        /// Настроено ли рабочее место. Пока нет — «Создать проект» недоступно
+        /// в любом режиме, и на экране висит причина со ссылкой в настройки.
+        /// Раньше отмена мастера не меняла ничего: дизайнер жал «Создать проект»
+        /// и получал не «настройте папки», а невнятное «файл шаблона не найден».
+        /// </summary>
+        private bool _configured = true;
+
+        private void ApplySetupState(bool configured)
+        {
+            _configured = configured;
+
+            SetupWarningBar.Visibility = configured ? Visibility.Collapsed : Visibility.Visible;
+            if (!configured)
+            {
+                SettingsWindow.NeedsWizard(out string why);
+                SetupWarning.Text = string.IsNullOrWhiteSpace(why)
+                    ? "Рабочее место не настроено — создавать проект некуда."
+                    : why;
+                Log("Рабочее место не настроено. " + why);
+            }
+
+            RefreshBuildAvailability();
+        }
+
+        /// <summary>
+        /// Единственное место, где решается доступность «Создать проект».
+        /// Раньше её включали и гасили из четырёх мест, и они разошлись:
+        /// карандаш включал кнопку безусловно, отменяя и проверку артикула,
+        /// и ненастроенное рабочее место.
+        /// </summary>
+        private void RefreshBuildAvailability()
+        {
+            BuildButton.IsEnabled = _configured && (_manualMode || _canBuildResolved);
+        }
+
+        /// <summary>Загруженный заказ пригоден к созданию проекта (артикул на месте и т.п.).</summary>
+        private bool _canBuildResolved;
+
         private void SettingsButton_Click(object sender, RoutedEventArgs e)
         {
             var window = new SettingsWindow { Owner = this };
-            if (window.ShowDialog() == true)
-                Log("Настройки сохранены.");
+            if (window.ShowDialog() != true)
+                return;
+
+            Log("Настройки сохранены.");
+
+            // Папки могли появиться прямо сейчас — снимаем запрет, не требуя перезапуска.
+            ApplySetupState(!SettingsWindow.NeedsWizard(out _));
         }
 
         // ---------- окно ----------
@@ -71,10 +117,11 @@ namespace CupsForge
         private async Task FetchAsync()
         {
             _resolved = null;
-            // В ручном режиме кнопка живёт своей жизнью: гасить её из-за загрузки
-            // заказа нельзя, иначе случайный Enter в поле ссылки блокирует ручной ввод.
-            if (!_manualMode)
-                BuildButton.IsEnabled = false;
+            // Кнопка зависит от валидности данных, а не от факта нажатия Enter:
+            // в ручном режиме загрузка заказа её не касается, иначе случайный
+            // Enter в поле ссылки блокировал бы ручной ввод.
+            _canBuildResolved = false;
+            RefreshBuildAvailability();
             SpecPanel.Visibility = Visibility.Collapsed;
             WarnPanel.Visibility = Visibility.Collapsed;
 
@@ -109,8 +156,9 @@ namespace CupsForge
                 // и пустой артикул — норма. Спрашиваем у каталога, а не гадаем.
                 bool needsArticle = CatalogService.Current.Match(resolved.ToBuildRequest().Spec)
                                         is not { Variants.Count: > 0 };
-                BuildButton.IsEnabled = !string.IsNullOrWhiteSpace(resolved.DesignCode)
-                                        && (!needsArticle || !string.IsNullOrWhiteSpace(resolved.ProductArticul));
+                _canBuildResolved = !string.IsNullOrWhiteSpace(resolved.DesignCode)
+                                    && (!needsArticle || !string.IsNullOrWhiteSpace(resolved.ProductArticul));
+                RefreshBuildAvailability();
                 Log($"Данные получены: {resolved.Brand} · {resolved.ProductArticul}. Проверьте и нажмите «Создать проект».");
             }
             catch (BitrixException bex)

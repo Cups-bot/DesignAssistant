@@ -489,6 +489,30 @@ public static class LogicChecks
         check.True("обещанная версия без файла даёт понятную жалобу",
             d2 != null && d2.Contains("98.0.0"));
 
+        // --- След провалившегося обновления ---
+        // Подмену файла делает скрипт без окна: показать сообщение ему некому,
+        // поэтому итог он пишет в apply.log. Раньше этот файл никто не читал —
+        // обновление молча не применялось, программа запускалась старой, и понять
+        // это можно было только заглянув в служебную папку.
+        string staging = Path.Combine(sandbox, "staging");
+        Directory.CreateDirectory(staging);
+        string applyLog = Path.Combine(staging, "apply.log");
+
+        check.True("без следа обновления жаловаться не на что",
+            Updater.TakeUpdateProblem(staging) == null);
+
+        File.WriteAllText(applyLog, "[01.08.2026 10:00:00] FAILED: target locked, update not applied\r\n");
+        string? problem = Updater.TakeUpdateProblem(staging);
+        check.True("провал обновления замечен", problem != null);
+        check.True("провал обновления назван словами",
+            (problem ?? "").Contains("обнов", StringComparison.OrdinalIgnoreCase));
+        check.True("след убран — второй раз не жалуемся", !File.Exists(applyLog));
+
+        File.WriteAllText(applyLog, "[01.08.2026 10:00:00] OK: updated\r\n");
+        check.True("успешное обновление не выдаётся за провал",
+            Updater.TakeUpdateProblem(staging) == null);
+        check.True("след успеха тоже убран", !File.Exists(applyLog));
+
         Directory.Delete(sandbox, true);
         MachineProfile.Set(MachineProfile.CreateOfficeDefault());
     }

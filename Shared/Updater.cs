@@ -104,6 +104,49 @@ namespace CupsCore
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "CupsForge");
 
+        /// <summary>Рабочая папка обновления: туда кладётся новая версия и пишется лог.</summary>
+        public static string StagingFolder => Path.Combine(InstallFolder, "update");
+
+        private const string ApplyLogName = "apply.log";
+
+        /// <summary>
+        /// Чем закончилась прошлая попытка обновиться. null — жаловаться не на что.
+        ///
+        /// Подмену файла делает скрипт без окна: сообщить что-либо на экран ему
+        /// некому, поэтому итог он пишет в apply.log. Раньше этот файл никто не
+        /// читал — обновление молча не применялось, программа запускалась старой,
+        /// и заметить это можно было, только заглянув в служебную папку.
+        ///
+        /// След убирается в любом случае: жаловаться повторно на разобранную
+        /// проблему хуже, чем не жаловаться вовсе.
+        /// </summary>
+        public static string? TakeUpdateProblem(string? stagingFolder = null)
+        {
+            string log = Path.Combine(stagingFolder ?? StagingFolder, ApplyLogName);
+
+            string text;
+            try
+            {
+                if (!File.Exists(log))
+                    return null;
+
+                text = File.ReadAllText(log);
+            }
+            catch
+            {
+                return null; // не прочитали — не повод шуметь
+            }
+
+            try { File.Delete(log); } catch { /* удалить не вышло — не беда */ }
+
+            if (!text.Contains("FAILED", StringComparison.Ordinal))
+                return null;
+
+            return "Прошлое обновление не применилось: программа была занята и файл " +
+                   "заменить не удалось. Сейчас работает прежняя версия — закройте её " +
+                   "полностью и попробуйте обновиться ещё раз.";
+        }
+
         /// <summary>Лежит ли запущенный файл внутри папки установки.</summary>
         public static bool IsInsideInstallFolder(string exePath)
         {
@@ -173,7 +216,7 @@ namespace CupsCore
                     return false;
                 }
 
-                string staging = Path.Combine(InstallFolder, "update");
+                string staging = StagingFolder;
                 Directory.CreateDirectory(staging);
                 string staged = Path.Combine(staging, "CupsForge.exe");
 
@@ -189,7 +232,7 @@ namespace CupsCore
                 // Итог работы пишется в лог рядом: окна у скрипта нет, показать
                 // сообщение на экране некому, а разбираться потом по чему-то надо.
                 string script = Path.Combine(staging, "apply.cmd");
-                string log = Path.Combine(staging, "apply.log");
+                string log = Path.Combine(staging, ApplyLogName);
 
                 // Пути НЕ подставляются в текст скрипта, а передаются аргументами:
                 // аргументы процесса уходят в Unicode, а тело .cmd читается в кодировке

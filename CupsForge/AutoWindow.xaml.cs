@@ -303,6 +303,17 @@ namespace CupsForge
         /// </summary>
         private void CheckForUpdate()
         {
+            // Прошлая попытка могла провалиться молча: подменяет файл скрипт без
+            // окна, и сказать об этом на экране он не может. Его след — первое,
+            // что нужно показать: человек сидит на старой версии и не знает.
+            string? previous = Updater.TakeUpdateProblem();
+            if (previous != null)
+            {
+                Log(previous);
+                UpdateText.Text = "Прошлое обновление не применилось";
+                UpdateBar.Visibility = Visibility.Visible;
+            }
+
             try
             {
                 _update = Updater.Check(out string? diagnosis);

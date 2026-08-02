@@ -35,6 +35,7 @@
          словари подключаются в App.xaml, — менять его вместе с Source. -->
     <Page Include="..\Shared\Theme\Tokens.xaml" Link="Shared\Theme\Tokens.xaml" />
     <Page Include="..\Shared\Theme\Icons.xaml" Link="Shared\Theme\Icons.xaml" />
+    <Page Include="..\Shared\Theme\Controls.xaml" Link="Shared\Theme\Controls.xaml" />
     <!-- Каталог продуктов: копия внутри программы — последний источник в цепочке. -->
     <EmbeddedResource Include="..\Shared\catalog.json" Link="Shared\catalog.json" />
   </ItemGroup>

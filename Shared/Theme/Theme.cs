@@ -31,7 +31,8 @@ namespace CupsCore
         public static readonly string[] Dictionaries =
         {
             Component + "Tokens.xaml",
-            Component + "Icons.xaml"
+            Component + "Icons.xaml",
+            Component + "Controls.xaml"
         };
 
         /// <summary>
@@ -86,6 +87,9 @@ namespace CupsCore
             "Title", "Value", "Body", "Label", "Mono",
             // движение
             "M.Fast", "M.Base", "M.Slow", "Ease",
+            // контролы
+            "Field", "PrimaryAction", "SubmitButton", "IconButton", "Ghost", "LinkAction",
+            "Combo", "ComboItem",
             // иконки
             "Icon", "IconPlain",
             "I.Link", "I.Arrow", "I.Pencil", "I.Sliders", "I.Check", "I.CheckCircle",

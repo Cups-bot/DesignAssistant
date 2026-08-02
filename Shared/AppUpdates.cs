@@ -56,8 +56,22 @@ namespace CupsCore
         {
             get
             {
-                try { return new UpdateManager("").IsInstalled; }
-                catch { return false; }
+                try
+                {
+                    // Источник тут ни при чём — спрашиваем только про установку.
+                    // Но пустой источник Velopack не принимает: раньше здесь
+                    // стоял new UpdateManager(""), он падал, признак всегда
+                    // выходил «не установлена», и программа НЕ ПРЕДЛАГАЛА
+                    // ОБНОВЛЕНИЯ НИКОГДА. Прогон это пропускал: он и правда
+                    // портативный, и верный ответ получался по неверной причине.
+                    // Поймано живым запуском установленной копии.
+                    var any = new SimpleFileSource(new DirectoryInfo(AppContext.BaseDirectory));
+                    return new UpdateManager(any).IsInstalled;
+                }
+                catch
+                {
+                    return false;
+                }
             }
         }
 

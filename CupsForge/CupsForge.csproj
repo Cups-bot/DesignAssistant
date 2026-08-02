@@ -8,15 +8,26 @@
     <Nullable>enable</Nullable>
     <RootNamespace>CupsForge</RootNamespace>
     <AssemblyName>CupsForge</AssemblyName>
-    <!-- Версия сравнивается с раздачей при запуске. Поднимайте перед публикацией. -->
+    <!-- Версия при обычной сборке. При выпуске её задаёт publish.ps1 из git,
+         чтобы забыть поднять было невозможно. -->
     <Version>3.0.0</Version>
     <ApplicationIcon>..\Images\Icon\logo.ico</ApplicationIcon>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
-    <PublishSingleFile>true</PublishSingleFile>
-    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <!-- Вдвое меньше файл: дизайнеры на удалёнке таскают его через RDP вручную. -->
-    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+
+    <!--
+        PublishSingleFile ВЫКЛЮЧЕН намеренно.
+
+        Он стоял ради того, чтобы дизайнер мог перенести программу одним файлом
+        через RDP. Эту задачу теперь решает Setup.exe: его получают ОДИН раз,
+        дальше носить нечего — обновления приходят сами.
+
+        А дельта-обновления с одним файлом несовместимы: разница считается
+        по файлам, и в едином сжатом блобе меняется практически всё. Проверено
+        на пробнике: папкой дельта вышла 3,6 КБ против 2,2 МБ полного пакета.
+        Ради этого всё и затевалось — «сдвинуть кнопку на полпикселя» не должно
+        стоить дизайнеру восьмидесяти мегабайт.
+    -->
   </PropertyGroup>
 
   <!-- appsettings.json копируется рядом с exe -->
@@ -59,12 +70,12 @@
 
   <!-- Шрифты (переиспользуем из родительского проекта) -->
   <ItemGroup>
-    <Resource Include="..\Fonts\SFProText-Bold.ttf"          Link="Fonts\SFProText-Bold.ttf" />
-    <Resource Include="..\Fonts\SFProText-BoldItalic.ttf"    Link="Fonts\SFProText-BoldItalic.ttf" />
-    <Resource Include="..\Fonts\SFProText-Light.ttf"         Link="Fonts\SFProText-Light.ttf" />
-    <Resource Include="..\Fonts\SFProText-Medium.ttf"        Link="Fonts\SFProText-Medium.ttf" />
-    <Resource Include="..\Fonts\SFProText-Regular.ttf"       Link="Fonts\SFProText-Regular.ttf" />
-    <Resource Include="..\Fonts\SFProText-Semibold.ttf"      Link="Fonts\SFProText-Semibold.ttf" />
+    <Resource Include="..\Fonts\SFProText-Bold.ttf" Link="Fonts\SFProText-Bold.ttf" />
+    <Resource Include="..\Fonts\SFProText-BoldItalic.ttf" Link="Fonts\SFProText-BoldItalic.ttf" />
+    <Resource Include="..\Fonts\SFProText-Light.ttf" Link="Fonts\SFProText-Light.ttf" />
+    <Resource Include="..\Fonts\SFProText-Medium.ttf" Link="Fonts\SFProText-Medium.ttf" />
+    <Resource Include="..\Fonts\SFProText-Regular.ttf" Link="Fonts\SFProText-Regular.ttf" />
+    <Resource Include="..\Fonts\SFProText-Semibold.ttf" Link="Fonts\SFProText-Semibold.ttf" />
     <Resource Include="..\Fonts\SFProText-SemiboldItalic.ttf" Link="Fonts\SFProText-SemiboldItalic.ttf" />
   </ItemGroup>
 
@@ -74,6 +85,9 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Resource>
     <Resource Include="..\Images\Icon\logo_white.ico" Link="Images\Icon\logo_white.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Velopack" Version="1.2.0" />
   </ItemGroup>
 
 </Project>

@@ -177,22 +177,32 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Thumb">
                     <Border x:Name="track" Background="Transparent" Width="10">
-                        <Border x:Name="pill" Width="3" HorizontalAlignment="Center"
-                                CornerRadius="{StaticResource R.Pill}"
-                                Background="{StaticResource Text}" Opacity="0.22">
-                            <Border.RenderTransform>
-                                <ScaleTransform x:Name="grow" ScaleX="1" CenterX="1.5"/>
-                            </Border.RenderTransform>
-                        </Border>
+                        <!--
+                            Радиус ЯВНЫЙ, а не R.Pill (999).
+
+                            У узкого и высокого прямоугольника WPF скругляет по
+                            половине ВЫСОТЫ, а не ширины: 999 превращал ползунок
+                            в линзу — он плавно сходил на нет к обоим концам и
+                            выглядел иглой. У широких и низких элементов (кнопки)
+                            та же величина даёт правильную пилюлю, поэтому R.Pill
+                            там и остаётся.
+
+                            Радиус — половина ширины, и меняется вместе с ней.
+                        -->
+                        <Border x:Name="pill" Width="4" CornerRadius="2"
+                                HorizontalAlignment="Center"
+                                Background="{StaticResource Muted}" Opacity="0.55"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="pill" Property="Opacity" Value="0.45"/>
+                            <Setter TargetName="pill" Property="Opacity" Value="0.8"/>
                             <Setter TargetName="pill" Property="Width" Value="6"/>
+                            <Setter TargetName="pill" Property="CornerRadius" Value="3"/>
                         </Trigger>
                         <Trigger Property="IsDragging" Value="True">
-                            <Setter TargetName="pill" Property="Opacity" Value="0.6"/>
+                            <Setter TargetName="pill" Property="Opacity" Value="0.95"/>
                             <Setter TargetName="pill" Property="Width" Value="6"/>
+                            <Setter TargetName="pill" Property="CornerRadius" Value="3"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -235,18 +245,35 @@
 
     <!-- ============ ЗАТУХАНИЕ У КРАЯ ПРОКРУТКИ ============ -->
     <!--
-        Маска на прокручиваемую область: содержимое растворяется у нижнего края,
-        а не обрывается по нему.
+        Строка, попавшая на нижнюю границу области прокрутки, обрывается ровно
+        по ней и читается как сломанная вёрстка, а не как «ниже есть ещё».
+        Особенно заметно, когда сразу под областью стоит кнопка: обрез сливается
+        с её краем.
 
-        Без неё строка, попавшая на границу, выглядит разрезанной пополам —
-        читается как сломанная вёрстка, а не как «ниже есть ещё». Особенно
-        заметно, когда сразу под областью стоит кнопка: обрез сливается с её
-        краем. Верх не трогаем: там заголовок, и растворять его незачем.
+        Сделано НАКЛАДКОЙ поверх, а не OpacityMask на ScrollViewer. Маска гасит
+        всё содержимое элемента вместе с полосой прокрутки: ползунок растворялся
+        снизу и превращался в клин. Накладка кладётся под ползунок и его не
+        трогает.
+
+        Цвет совпадает с фоном под областью, поэтому кистей три: сцена лежит
+        на фоне окна, блок полей — на панели, шторка журнала — на поверхности.
+
+        Накладка НЕ доходит до правого края на ширину колеи ползунка. Иначе
+        гасит и его: ползунок таял снизу и превращался в иглу.
     -->
-    <LinearGradientBrush x:Key="FadeBottom" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#FF000000" Offset="0"/>
-        <GradientStop Color="#FF000000" Offset="0.88"/>
-        <GradientStop Color="#00000000" Offset="1"/>
+    <LinearGradientBrush x:Key="FadeToBg" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#0004070F" Offset="0"/>
+        <GradientStop Color="#FF04070F" Offset="1"/>
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="FadeToPanel" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#000B1220" Offset="0"/>
+        <GradientStop Color="#FF0B1220" Offset="1"/>
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="FadeToSurface" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#00080E1B" Offset="0"/>
+        <GradientStop Color="#FF080E1B" Offset="1"/>
     </LinearGradientBrush>
 
     <!-- ============ ВЫПАДАЮЩИЙ СПИСОК ============ -->

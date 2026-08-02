@@ -3,431 +3,539 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="CupsForge"
-        Width="430"
-        SizeToContent="Height"
+        Width="{StaticResource Size.Window}"
+        Height="{StaticResource Size.WindowHeight}"
         WindowStartupLocation="CenterScreen"
-        SizeChanged="Window_SizeChanged"
         ResizeMode="NoResize"
-        Background="#020617"
+        Background="{StaticResource Bg}"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display"
         Icon="pack://application:,,,/Images/Icon/logo.ico">
 
+    <!--
+        Габарит окна КОНСТАНТЕН во всех состояниях.
+
+        Раньше стояло SizeToContent="Height", и окно росло вниз от каждой
+        появившейся панели, а обработчик SizeChanged двигал Top, чтобы нижний
+        край стоял на месте. Кнопка «Создать проект» при этом уезжала: на глаз
+        она то там, то тут, и мышечная память не работала.
+
+        Теперь всё, что раньше растило окно, кладётся ПОВЕРХ сцены: журнал —
+        шторкой снизу, настройки — панелью справа, правка — листом на одно поле.
+        Размер задаётся токенами Size.Window / Size.WindowHeight — уменьшить
+        окно значит поменять два числа, а не переверстать.
+    -->
     <shell:WindowChrome.WindowChrome>
-        <shell:WindowChrome CaptionHeight="32" ResizeBorderThickness="0" CornerRadius="0" UseAeroCaptionButtons="False"/>
+        <shell:WindowChrome CaptionHeight="{StaticResource Size.Titlebar}"
+                            ResizeBorderThickness="0" CornerRadius="0"
+                            GlassFrameThickness="0" UseAeroCaptionButtons="False"/>
     </shell:WindowChrome.WindowChrome>
 
-    <Window.Resources>
-        <FontFamily x:Key="Reg">pack://application:,,,/Fonts/#SF Pro Text</FontFamily>
-        <FontFamily x:Key="Med">pack://application:,,,/Fonts/#SF Pro Text Medium</FontFamily>
-        <FontFamily x:Key="Semi">pack://application:,,,/Fonts/#SF Pro Text Semibold</FontFamily>
-        <FontFamily x:Key="Bold">pack://application:,,,/Fonts/#SF Pro Text Bold</FontFamily>
-
-        <SolidColorBrush x:Key="TextMain" Color="#E5E7EB"/>
-        <SolidColorBrush x:Key="TextMuted" Color="#9CA3AF"/>
-        <SolidColorBrush x:Key="Accent" Color="#38BDF8"/>
-
-        <LinearGradientBrush x:Key="AppBg" StartPoint="0,0" EndPoint="1,1">
-            <GradientStop Color="#020617" Offset="0"/>
-            <GradientStop Color="#04091A" Offset="0.7"/>
-            <GradientStop Color="#020617" Offset="1"/>
-        </LinearGradientBrush>
-
-        <!-- Метка / значение строки в панели сверки -->
-        <Style x:Key="Lbl" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource TextMuted}"/>
-            <Setter Property="FontFamily" Value="{StaticResource Reg}"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Margin" Value="0,3,0,3"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-        <Style x:Key="Val" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
-            <Setter Property="FontFamily" Value="{StaticResource Med}"/>
-            <Setter Property="FontSize" Value="12.5"/>
-            <Setter Property="Margin" Value="0,3,0,3"/>
-            <Setter Property="TextWrapping" Value="Wrap"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-
-        <Style x:Key="RoundedTextBox" TargetType="TextBox">
-            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
-            <Setter Property="Background" Value="#0C1426"/>
-            <Setter Property="BorderBrush" Value="#1F2937"/>
-            <Setter Property="BorderThickness" Value="1.2"/>
-            <Setter Property="Padding" Value="12,9"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontFamily" Value="{StaticResource Reg}"/>
-            <Setter Property="CaretBrush" Value="#E5E7EB"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TextBox">
-                        <Border x:Name="b" CornerRadius="16"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}">
-                            <ScrollViewer x:Name="PART_ContentHost"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="b" Property="BorderBrush" Value="#2563EB"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Круглая иконочная кнопка -->
-        <Style x:Key="IconButton" TargetType="Button">
-            <Setter Property="Width" Value="44"/>
-            <Setter Property="Height" Value="44"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Foreground" Value="#F9FAFB"/>
-            <Setter Property="FontSize" Value="18"/>
-            <Setter Property="Background" Value="#111827"/>
-            <Setter Property="BorderBrush" Value="#1F2937"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="b" CornerRadius="14"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="1.2">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="b" Property="Background" Value="#1D283A"/>
-                                <Setter TargetName="b" Property="BorderBrush" Value="#2563EB"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="b" Property="Opacity" Value="0.45"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Плоская текстовая кнопка (переключатель журнала) -->
-        <Style x:Key="FlatText" TargetType="Button">
-            <Setter Property="Foreground" Value="{StaticResource TextMuted}"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Padding" Value="8,3"/>
-            <Setter Property="FontFamily" Value="{StaticResource Med}"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="HorizontalAlignment" Value="Left"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="b" Background="{TemplateBinding Background}" CornerRadius="999" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="b" Property="Background" Value="#0C1426"/>
-                                <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="CreateButton" TargetType="Button">
-            <Setter Property="Height" Value="48"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Foreground" Value="#F9FAFB"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontFamily" Value="{StaticResource Semi}"/>
-            <Setter Property="Background">
-                <Setter.Value>
-                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                        <GradientStop Color="#2563EB" Offset="0"/>
-                        <GradientStop Color="#38BDF8" Offset="1"/>
-                    </LinearGradientBrush>
-                </Setter.Value>
-            </Setter>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="p" CornerRadius="22" Background="{TemplateBinding Background}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="p" Property="Opacity" Value="0.92"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="p" Property="Opacity" Value="0.4"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-    </Window.Resources>
-
-    <Border Background="{StaticResource AppBg}" CornerRadius="0">
-        <Grid Margin="14,8,14,12">
+    <Border Background="{StaticResource WindowBg}" BorderBrush="{StaticResource Line}" BorderThickness="1">
+        <Grid>
+            <!-- Сцена и подвал; уведомления вклиниваются строкой между шапкой и сценой -->
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <!-- Полоска обновления: появляется, только если на раздаче есть версия новее -->
-            <Border x:Name="UpdateBar" Grid.Row="0" Visibility="Collapsed" Panel.ZIndex="2"
-                    CornerRadius="10" Padding="10,5" Margin="0,30,0,0"
-                    Background="#0B2438" BorderBrush="#1D4ED8" BorderThickness="1">
-                <Grid>
-                    <TextBlock x:Name="UpdateText" Foreground="{StaticResource TextMain}"
-                               FontFamily="{StaticResource Reg}" FontSize="11.5"
-                               VerticalAlignment="Center" HorizontalAlignment="Left"/>
-                    <Button x:Name="UpdateButton" Style="{StaticResource FlatText}"
-                            Content="Обновить" Foreground="{StaticResource Accent}"
-                            HorizontalAlignment="Right" Click="UpdateButton_Click"/>
-                </Grid>
-            </Border>
+            <!-- ═══════════ ШАПКА ═══════════ -->
+            <Grid Grid.Row="0" Height="{StaticResource Size.Titlebar}">
+                <Border BorderBrush="{StaticResource LineSoft}" BorderThickness="0,0,0,1"/>
 
-            <!-- Обновление шаблонов из раздачи. Первый раз спрашиваем — там сотни
-                 мегабайт; дальше тянем молча и показываем эту полоску лишь на время. -->
-            <Border x:Name="SyncBar" Grid.Row="0" Visibility="Collapsed" Panel.ZIndex="3"
-                    CornerRadius="10" Padding="10,5" Margin="0,30,0,0"
-                    Background="#0B2438" BorderBrush="#1D4ED8" BorderThickness="1">
-                <Grid>
-                    <TextBlock x:Name="SyncText" Foreground="{StaticResource TextMain}"
-                               FontFamily="{StaticResource Reg}" FontSize="11.5"
-                               VerticalAlignment="Center" HorizontalAlignment="Left"
-                               TextTrimming="CharacterEllipsis" MaxWidth="290"/>
-                    <Button x:Name="SyncButton" Style="{StaticResource FlatText}"
-                            Content="Скачать" Foreground="{StaticResource Accent}"
-                            HorizontalAlignment="Right" Click="SyncButton_Click"/>
-                </Grid>
-            </Border>
-
-            <!-- Каталог взят не оттуда, откуда ждали: правки файла не действуют.
-                 Молчать об этом нельзя — со стороны выглядит как «замена не помогает». -->
-            <Border x:Name="CatalogWarningBar" Grid.Row="0" Visibility="Collapsed" Panel.ZIndex="2"
-                    CornerRadius="10" Padding="10,6" Margin="0,30,0,0"
-                    Background="#2A1B10" BorderBrush="#7C4A12" BorderThickness="1">
-                <TextBlock x:Name="CatalogWarning" Foreground="#FBBF24"
-                           FontFamily="{StaticResource Reg}" FontSize="11"
-                           TextWrapping="Wrap"/>
-            </Border>
-
-            <!-- Заголовок / mac-точки -->
-            <Grid Grid.Row="0" Height="26">
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
-                    <Ellipse Width="10" Height="10" Fill="#F97373" Margin="0,0,6,0" Cursor="Hand"
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                            HorizontalAlignment="Left" Margin="14,0,0,0">
+                    <Ellipse Width="10" Height="10" Fill="{StaticResource Danger}" Margin="0,0,6,0" Cursor="Hand"
                              shell:WindowChrome.IsHitTestVisibleInChrome="True"
-                             MouseLeftButtonDown="Close_Click"/>
-                    <Ellipse Width="10" Height="10" Fill="#FBBF24" Margin="0,0,6,0" Cursor="Hand"
+                             MouseLeftButtonDown="Close_Click" ToolTip="Закрыть"/>
+                    <Ellipse Width="10" Height="10" Fill="{StaticResource Warn}" Margin="0,0,6,0" Cursor="Hand"
                              shell:WindowChrome.IsHitTestVisibleInChrome="True"
-                             MouseLeftButtonDown="Minimize_Click"/>
-                    <Ellipse Width="10" Height="10" Fill="#34D399"/>
+                             MouseLeftButtonDown="Minimize_Click" ToolTip="Свернуть"/>
+                    <Ellipse Width="10" Height="10" Fill="{StaticResource Ok}"/>
                 </StackPanel>
+
                 <TextBlock VerticalAlignment="Center" HorizontalAlignment="Center"
-                           FontFamily="{StaticResource Bold}" FontSize="13">
-                    <Run Text="Cups" Foreground="{StaticResource TextMain}"/><Run Text="Forge" Foreground="{StaticResource Accent}"/>
+                           FontFamily="{StaticResource F.Semibold}" FontSize="12" IsHitTestVisible="False">
+                    <Run Text="Cups" Foreground="{StaticResource Text}"/><Run Text="Forge" Foreground="{StaticResource Accent}"/>
                 </TextBlock>
+
+                <Button x:Name="SettingsButton" Style="{StaticResource IconButton}"
+                        HorizontalAlignment="Right" Margin="0,0,10,0" ToolTip="Настройки рабочего места"
+                        shell:WindowChrome.IsHitTestVisibleInChrome="True" Click="SettingsButton_Click">
+                    <Path Style="{StaticResource Icon}" Data="{StaticResource I.Sliders}"
+                          Width="16" Height="16" Stretch="Uniform" StrokeThickness="2.4"/>
+                </Button>
             </Grid>
 
-            <!-- Ввод ссылки -->
-            <StackPanel Grid.Row="2" Margin="0,12,0,0">
-                <TextBlock Text="ССЫЛКА НА ЗАКАЗ BITRIX" Foreground="{StaticResource TextMuted}"
-                           FontFamily="{StaticResource Med}" FontSize="10" Margin="4,0,0,6"/>
+            <!-- ═══════════ УВЕДОМЛЕНИЕ ═══════════ -->
+            <!--
+                Одна полоска на все сообщения, показывающая ОДНО за раз.
+                Раньше их было четыре (обновление, шаблоны, каталог, ненастроенные
+                папки), и все сидели в одной строке сетки друг поверх друга:
+                два сообщения сразу — и второе не видно вовсе.
+                Что показывать, решает очередь в коде, а не разметка.
+            -->
+            <Border x:Name="NoticeBar" Grid.Row="1" Visibility="Collapsed"
+                    Background="{StaticResource Panel}" BorderBrush="{StaticResource LineSoft}"
+                    BorderThickness="0,0,0,1" Padding="12,7">
                 <Grid>
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBox x:Name="LinkBox" Grid.Column="0" Style="{StaticResource RoundedTextBox}"
-                             Height="44" KeyDown="LinkBox_KeyDown"/>
-                    <Button x:Name="FetchButton" Grid.Column="1" Style="{StaticResource IconButton}"
-                            Margin="8,0,0,0" Content="&#x2192;" ToolTip="Загрузить данные из Bitrix"
-                            Click="FetchButton_Click"/>
-                    <Button x:Name="PencilButton" Grid.Column="2" Style="{StaticResource IconButton}"
-                            Margin="8,0,0,0" Content="&#x270E;" ToolTip="Открыть ручной редактор"
-                            Click="PencilButton_Click"/>
-                    <Button x:Name="SettingsButton" Grid.Column="3" Style="{StaticResource IconButton}"
-                            Margin="8,0,0,0" Content="&#x2699;" ToolTip="Настройки рабочего места"
-                            Click="SettingsButton_Click"/>
-                </Grid>
-            </StackPanel>
 
-            <!-- Панель сверки (над полем ввода ссылки) -->
-            <Border x:Name="SpecPanel" Grid.Row="1" Margin="0,14,0,0"
-                    CornerRadius="18" Padding="14,12" BorderThickness="1.2" BorderBrush="#1F2937"
-                    Background="#0B1220" Visibility="Collapsed">
-                <StackPanel>
-                    <!-- Заголовок-переключатель: панель можно свернуть, состояние
-                         запоминается в профиле и восстанавливается при следующем запуске. -->
-                    <Button x:Name="SpecToggle" Style="{StaticResource FlatText}" Padding="0,0,0,10"
-                            HorizontalAlignment="Stretch" Click="SpecToggle_Click">
-                        <Grid Width="370">
-                            <TextBlock x:Name="SpecHeader" Text="ПРОВЕРКА ДАННЫХ"
-                                       Foreground="{StaticResource TextMuted}"
-                                       FontFamily="{StaticResource Med}" FontSize="10"
-                                       HorizontalAlignment="Left"/>
-                            <TextBlock x:Name="SpecChevron" Text="⌃" Foreground="{StaticResource TextMuted}"
-                                       FontSize="11" HorizontalAlignment="Right"/>
-                        </Grid>
+                    <Path x:Name="NoticeIcon" Grid.Column="0" Style="{StaticResource IconPlain}"
+                          Data="{StaticResource I.Download}" Stroke="{StaticResource Accent}"
+                          Width="14" Height="14" Stretch="Uniform" StrokeThickness="2.6"
+                          VerticalAlignment="Center" Margin="0,0,9,0"/>
+
+                    <TextBlock x:Name="NoticeText" Grid.Column="1" Style="{StaticResource Body}"
+                               Foreground="{StaticResource Text}" TextWrapping="NoWrap"
+                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+
+                    <Button x:Name="NoticeAction" Grid.Column="2" Style="{StaticResource LinkAction}"
+                            Visibility="Collapsed" Click="NoticeAction_Click"/>
+
+                    <Button x:Name="NoticeClose" Grid.Column="3" Style="{StaticResource IconButton}"
+                            Width="20" Height="20" Margin="4,0,0,0" ToolTip="Скрыть"
+                            Click="NoticeClose_Click">
+                        <Path Style="{StaticResource Icon}" Data="{StaticResource I.Close}"
+                              Width="11" Height="11" Stretch="Uniform" StrokeThickness="3"/>
                     </Button>
-                    <Grid x:Name="SpecBody">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="96"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Направление"  Style="{StaticResource Lbl}"/>
-                        <TextBlock Grid.Row="0" Grid.Column="1" x:Name="ValBrand"   Style="{StaticResource Val}"/>
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Заказ"        Style="{StaticResource Lbl}"/>
-                        <TextBlock Grid.Row="1" Grid.Column="1" x:Name="ValOrder"   Style="{StaticResource Val}"/>
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Название"     Style="{StaticResource Lbl}"/>
-                        <TextBlock Grid.Row="2" Grid.Column="1" x:Name="ValName"    Style="{StaticResource Val}"/>
-                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Тип"          Style="{StaticResource Lbl}"/>
-                        <TextBlock Grid.Row="3" Grid.Column="1" x:Name="ValType"    Style="{StaticResource Val}"/>
-                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Артикул"      Style="{StaticResource Lbl}"/>
-                        <TextBlock Grid.Row="4" Grid.Column="1" x:Name="ValArticul" Style="{StaticResource Val}"/>
-                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Печать"       Style="{StaticResource Lbl}"/>
-                        <TextBlock Grid.Row="5" Grid.Column="1" x:Name="ValPrint"   Style="{StaticResource Val}"/>
-                        <TextBlock Grid.Row="6" Grid.Column="0" Text="Материал"     Style="{StaticResource Lbl}"/>
-                        <TextBlock Grid.Row="6" Grid.Column="1" x:Name="ValMaterial" Style="{StaticResource Val}"/>
-                        <TextBlock Grid.Row="7" Grid.Column="0" Text="Покрытие"     Style="{StaticResource Lbl}"/>
-                        <TextBlock Grid.Row="7" Grid.Column="1" x:Name="ValCoating" Style="{StaticResource Val}"/>
-                        <TextBlock Grid.Row="8" Grid.Column="0" Text="Страна"       Style="{StaticResource Lbl}"/>
-                        <TextBlock Grid.Row="8" Grid.Column="1" x:Name="ValCountry" Style="{StaticResource Val}"/>
-                        <TextBlock Grid.Row="9" Grid.Column="0" Text="Вкус / вид"   Style="{StaticResource Lbl}"/>
-                        <TextBlock Grid.Row="9" Grid.Column="1" x:Name="ValVariant" Style="{StaticResource Val}"/>
-                    </Grid>
-
-                    <Border x:Name="WarnPanel" Visibility="Collapsed" Margin="0,12,0,0"
-                            CornerRadius="12" Padding="12,8" Background="#2A1B10" BorderBrush="#7C4A12" BorderThickness="1">
-                        <TextBlock x:Name="WarnText" Foreground="#FBBF24" FontFamily="{StaticResource Reg}"
-                                   FontSize="12" TextWrapping="Wrap"/>
-                    </Border>
-                </StackPanel>
+                </Grid>
             </Border>
 
-            <!-- Ручной ввод: только поля, которые правят руками. Никаких картинок —
-                 это не основной экран, и раздувать его незачем. Состав полей
-                 берётся из каталога, поэтому новый продукт появляется здесь сам. -->
-            <Border x:Name="ManualPanel" Grid.Row="3" Margin="0,12,0,0" Visibility="Collapsed"
-                    CornerRadius="18" Padding="14,12" BorderThickness="1.2" BorderBrush="#1F2937"
-                    Background="#0B1220">
-                <StackPanel>
-                    <TextBlock Text="РУЧНОЙ ВВОД" Foreground="{StaticResource TextMuted}"
-                               FontFamily="{StaticResource Med}" FontSize="10" Margin="0,0,0,10"/>
+            <!-- ═══════════ СЦЕНА ═══════════ -->
+            <!-- Состояния лежат друг на друге, видно ровно одно. -->
+            <Grid Grid.Row="2" Margin="{StaticResource StagePadding}">
 
-                    <TextBlock Text="ИМЯ ДИЗАЙНА" Style="{StaticResource Lbl}" Margin="2,0,0,4"/>
-                    <TextBox x:Name="ManualNameBox" Style="{StaticResource RoundedTextBox}"
-                             Height="38" Margin="0,0,0,10"/>
+                <!-- ─── ПУСТО ─── -->
+                <Grid x:Name="StateEmpty">
+                    <StackPanel VerticalAlignment="Center">
+                        <Grid Width="52" Height="52" HorizontalAlignment="Center">
+                            <Ellipse Fill="#12000000"/>
+                            <Ellipse Fill="#1238BDF8" Stroke="#3838BDF8" StrokeThickness="1"/>
+                            <Path Style="{StaticResource IconPlain}" Data="{StaticResource I.Link}"
+                                  Stroke="{StaticResource Accent}" HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"/>
+                        </Grid>
 
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="96"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
+                        <TextBlock Style="{StaticResource Title}" Text="Вставьте ссылку на заказ"
+                                   HorizontalAlignment="Center" Margin="0,16,0,0"/>
 
-                        <TextBlock x:Name="LblBrand" Grid.Row="0" Grid.Column="0" Text="Направление" Style="{StaticResource Lbl}"/>
-                        <ComboBox  x:Name="BrandCombo" Grid.Row="0" Grid.Column="1" Margin="0,3" Height="30"
-                                   FontFamily="{StaticResource Reg}" FontSize="12.5"
-                                   SelectionChanged="ManualBrand_Changed"/>
+                        <Grid Margin="0,18,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="LinkBox" Grid.Column="0" Style="{StaticResource Field}"
+                                     KeyDown="LinkBox_KeyDown" TextChanged="LinkBox_TextChanged"/>
+                            <Button x:Name="FetchButton" Grid.Column="1" Style="{StaticResource SubmitButton}"
+                                    Margin="8,0,0,0" ToolTip="Загрузить данные из Bitrix"
+                                    Click="FetchButton_Click">
+                                <Path Style="{StaticResource Icon}" Data="{StaticResource I.Arrow}"
+                                      Width="18" Height="18" Stretch="Uniform" StrokeThickness="2.4"/>
+                            </Button>
+                        </Grid>
 
-                        <TextBlock x:Name="LblType" Grid.Row="1" Grid.Column="0" Text="Тип продукта" Style="{StaticResource Lbl}"/>
-                        <ComboBox  x:Name="TypeCombo" Grid.Row="1" Grid.Column="1" Margin="0,3" Height="30"
-                                   FontFamily="{StaticResource Reg}" FontSize="12.5"
-                                   SelectionChanged="ManualType_Changed"/>
+                        <Button x:Name="PencilButton" Style="{StaticResource Ghost}"
+                                HorizontalAlignment="Center" Margin="0,12,0,0"
+                                ToolTip="Ввести данные заказа руками" Click="PencilButton_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <Path Style="{StaticResource Icon}" Data="{StaticResource I.Pencil}"
+                                      Width="14" Height="14" Stretch="Uniform" StrokeThickness="2.8"
+                                      Margin="0,0,6,0"/>
+                                <TextBlock Text="Ввести вручную" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
 
-                        <TextBlock x:Name="LblTech" Grid.Row="2" Grid.Column="0" Text="Печать" Style="{StaticResource Lbl}"/>
-                        <ComboBox  x:Name="TechCombo" Grid.Row="2" Grid.Column="1" Margin="0,3" Height="30"
-                                   FontFamily="{StaticResource Reg}" FontSize="12.5"
-                                   SelectionChanged="ManualDetail_Changed"/>
-
-                        <TextBlock x:Name="LblVariant" Grid.Row="3" Grid.Column="0" Text="Вариант" Style="{StaticResource Lbl}"/>
-                        <ComboBox  x:Name="VariantCombo" Grid.Row="3" Grid.Column="1" Margin="0,3" Height="30"
-                                   FontFamily="{StaticResource Reg}" FontSize="12.5"/>
-
-                        <TextBlock x:Name="LblCountry" Grid.Row="4" Grid.Column="0" Text="Страна" Style="{StaticResource Lbl}"/>
-                        <ComboBox  x:Name="CountryCombo" Grid.Row="4" Grid.Column="1" Margin="0,3" Height="30"
-                                   FontFamily="{StaticResource Reg}" FontSize="12.5"/>
-
-                        <TextBlock x:Name="LblMaterial" Grid.Row="5" Grid.Column="0" Text="Материал" Style="{StaticResource Lbl}"/>
-                        <ComboBox  x:Name="MaterialCombo" Grid.Row="5" Grid.Column="1" Margin="0,3" Height="30"
-                                   FontFamily="{StaticResource Reg}" FontSize="12.5"
-                                   SelectionChanged="ManualDetail_Changed"/>
-
-                        <TextBlock x:Name="LblCoating" Grid.Row="6" Grid.Column="0" Text="Покрытие" Style="{StaticResource Lbl}"/>
-                        <ComboBox  x:Name="CoatingCombo" Grid.Row="6" Grid.Column="1" Margin="0,3" Height="30"
-                                   FontFamily="{StaticResource Reg}" FontSize="12.5"/>
-                    </Grid>
-
-                    <TextBlock x:Name="ManualProductInfo" Foreground="{StaticResource TextMuted}"
-                               FontFamily="{StaticResource Reg}" FontSize="11"
-                               TextWrapping="Wrap" Margin="2,10,0,0"/>
-                </StackPanel>
-            </Border>
-
-            <!-- Кнопка создания. Над ней — причина, по которой создавать нельзя:
-                 гасить кнопку молча значит оставить человека без следующего шага. -->
-            <StackPanel Grid.Row="4">
-                <Border x:Name="SetupWarningBar" Visibility="Collapsed" Margin="0,12,0,0"
-                        CornerRadius="12" Padding="12,8"
-                        Background="#2A1B10" BorderBrush="#7C4A12" BorderThickness="1">
-                    <StackPanel>
-                        <TextBlock x:Name="SetupWarning" Foreground="#FBBF24"
-                                   FontFamily="{StaticResource Reg}" FontSize="11"
-                                   TextWrapping="Wrap"/>
-                        <Button x:Name="SetupOpenButton" Style="{StaticResource FlatText}"
-                                Margin="0,6,0,0" Content="Открыть настройки"
-                                Foreground="{StaticResource Accent}" Click="SettingsButton_Click"/>
+                        <!-- Ссылка уже в буфере — предлагаем взять, а не заставляем вставлять. -->
+                        <Border x:Name="ClipboardHint" Visibility="Collapsed" Margin="0,16,0,0"
+                                CornerRadius="{StaticResource R.Md}" Padding="10,8"
+                                Background="{StaticResource Input}" BorderBrush="{StaticResource Line}"
+                                BorderThickness="1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Path Grid.Column="0" Style="{StaticResource IconPlain}"
+                                      Data="{StaticResource I.Clipboard}" Stroke="{StaticResource Dim}"
+                                      Width="14" Height="14" Stretch="Uniform" StrokeThickness="2.6"
+                                      VerticalAlignment="Center" Margin="0,0,9,0"/>
+                                <TextBlock x:Name="ClipboardText" Grid.Column="1" Style="{StaticResource Mono}"
+                                           Foreground="{StaticResource Muted}" VerticalAlignment="Center"/>
+                                <Button x:Name="ClipboardTake" Grid.Column="2" Style="{StaticResource LinkAction}"
+                                        Content="Взять" Click="ClipboardTake_Click"/>
+                            </Grid>
+                        </Border>
                     </StackPanel>
+                </Grid>
+
+                <!-- ─── ПРОВЕРКА ─── -->
+                <Grid x:Name="StateChecking" Visibility="Collapsed">
+                    <StackPanel VerticalAlignment="Center">
+                        <Ellipse x:Name="Spinner" Width="46" Height="46" HorizontalAlignment="Center"
+                                 Stroke="{StaticResource AccentDeep}" StrokeThickness="3"
+                                 StrokeDashArray="3 1.2" RenderTransformOrigin="0.5,0.5">
+                            <Ellipse.RenderTransform>
+                                <RotateTransform x:Name="SpinnerRotation"/>
+                            </Ellipse.RenderTransform>
+                        </Ellipse>
+                        <TextBlock Style="{StaticResource Title}" Text="Проверяем заказ"
+                                   HorizontalAlignment="Center" Margin="0,16,0,0"/>
+                        <TextBlock x:Name="CheckingLink" Style="{StaticResource Mono}"
+                                   HorizontalAlignment="Center" Margin="0,3,0,0" MaxWidth="300"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- ─── РЕЗУЛЬТАТ (готово / ошибка) ─── -->
+                <Grid x:Name="StateResult" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Шапка результата -->
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Border x:Name="ResultBadge" Grid.Column="0" Width="34" Height="34"
+                                CornerRadius="{StaticResource R.Sm}" Margin="0,0,11,0"
+                                Background="#1A34D399" BorderBrush="#4834D399" BorderThickness="1">
+                            <Path x:Name="ResultBadgeIcon" Style="{StaticResource IconPlain}"
+                                  Data="{StaticResource I.Check}" Stroke="{StaticResource Ok}"
+                                  Width="19" Height="19" Stretch="Uniform" StrokeThickness="2.4"/>
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock x:Name="ResultHeadline" Style="{StaticResource Title}" FontSize="14.5"/>
+                            <TextBlock x:Name="ResultSubline" Style="{StaticResource Mono}" Margin="0,2,0,0"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Поля заказа. Список — ДАННЫЕ: состав строится из заказа
+                         и каталога, а не перечисляется здесь. Новый продукт со
+                         своим полем появится сам. -->
+                    <Border Grid.Row="1" Margin="0,14,0,12" CornerRadius="{StaticResource R.Md}"
+                            Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}"
+                            BorderThickness="1" ClipToBounds="True">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsControl x:Name="ResultFields">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Style="{StaticResource Ghost}" Padding="0"
+                                                HorizontalContentAlignment="Stretch"
+                                                Tag="{Binding}" Click="ResultField_Click"
+                                                ToolTip="{Binding Hint}">
+                                            <Border Background="Transparent" Padding="12,8"
+                                                    BorderBrush="{StaticResource LineSoft}" BorderThickness="0,0,0,1">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="84"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Style="{StaticResource Body}"
+                                                               Foreground="{StaticResource Dim}"
+                                                               Text="{Binding Label}" TextWrapping="NoWrap"
+                                                               VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="1" Style="{StaticResource Value}"
+                                                               Text="{Binding Value}"
+                                                               Foreground="{Binding ValueBrush}"
+                                                               VerticalAlignment="Center"/>
+                                                    <Path Grid.Column="2" Style="{StaticResource IconPlain}"
+                                                          Data="{StaticResource I.Pencil}" Stroke="#2A3546"
+                                                          Width="13" Height="13" Stretch="Uniform"
+                                                          StrokeThickness="2.8" VerticalAlignment="Center"
+                                                          Visibility="{Binding FixVisibility}"/>
+                                                </Grid>
+                                            </Border>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Border>
+
+                    <Button x:Name="BuildButton" Grid.Row="2" Style="{StaticResource PrimaryAction}"
+                            IsEnabled="False" Click="BuildButton_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Style="{StaticResource Icon}" Data="{StaticResource I.FolderPlus}"
+                                  Width="17" Height="17" Stretch="Uniform" StrokeThickness="2.4"
+                                  Margin="0,0,9,0"/>
+                            <TextBlock x:Name="BuildButtonText" Text="Создать проект" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </Grid>
+
+                <!-- ─── СОЗДАЁТСЯ ─── -->
+                <Grid x:Name="StateRunning" Visibility="Collapsed">
+                    <StackPanel VerticalAlignment="Center">
+                        <Border Width="52" Height="52" HorizontalAlignment="Center"
+                                CornerRadius="{StaticResource R.Sm}"
+                                Background="#1238BDF8" BorderBrush="#3838BDF8" BorderThickness="1">
+                            <Path Style="{StaticResource IconPlain}" Data="{StaticResource I.FolderPlus}"
+                                  Stroke="{StaticResource Accent}"/>
+                        </Border>
+                        <TextBlock x:Name="RunningLabel" Style="{StaticResource Title}"
+                                   Text="Создаём проект" HorizontalAlignment="Center" Margin="0,16,0,0"/>
+                        <Border Height="3" Margin="0,16,0,0" CornerRadius="2"
+                                Background="{StaticResource Line}" ClipToBounds="True">
+                            <Border x:Name="RunningBar" Width="120" HorizontalAlignment="Left"
+                                    CornerRadius="2" Background="{StaticResource AccentGradient}"
+                                    RenderTransformOrigin="0,0">
+                                <Border.RenderTransform>
+                                    <TranslateTransform x:Name="RunningBarShift"/>
+                                </Border.RenderTransform>
+                            </Border>
+                        </Border>
+                        <TextBlock x:Name="RunningPath" Style="{StaticResource Mono}"
+                                   HorizontalAlignment="Center" Margin="0,10,0,0" MaxWidth="320"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- ─── СОЗДАН ─── -->
+                <Grid x:Name="StateDone" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" VerticalAlignment="Center">
+                        <Grid Width="52" Height="52" HorizontalAlignment="Center">
+                            <Ellipse Fill="#1A34D399" Stroke="#5234D399" StrokeThickness="1"/>
+                            <Path Style="{StaticResource IconPlain}" Data="{StaticResource I.Check}"
+                                  Stroke="{StaticResource Ok}" Width="26" Height="26" Stretch="Uniform"
+                                  StrokeThickness="1.8" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                        <TextBlock x:Name="DoneHeadline" Style="{StaticResource Title}"
+                                   HorizontalAlignment="Center" Margin="0,16,0,0" TextAlignment="Center"/>
+                        <TextBlock x:Name="DonePath" Style="{StaticResource Mono}"
+                                   HorizontalAlignment="Center" Margin="0,6,0,0" MaxWidth="320"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1">
+                        <Button x:Name="NextOrderButton" Style="{StaticResource PrimaryAction}"
+                                Click="NextOrder_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <Path Style="{StaticResource Icon}" Data="{StaticResource I.Arrow}"
+                                      Width="17" Height="17" Stretch="Uniform" StrokeThickness="2.4"
+                                      Margin="0,0,9,0"/>
+                                <TextBlock Text="Следующий заказ" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="OpenFolderButton" Style="{StaticResource Ghost}"
+                                HorizontalAlignment="Center" Margin="0,8,0,0"
+                                Content="Открыть папку" Click="OpenFolder_Click"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- ─── РУЧНОЙ ВВОД ─── -->
+                <!-- Состав полей берётся из каталога: новый продукт появляется
+                     в списках сам, рисовать для него строку не требуется. -->
+                <Grid x:Name="StateManual" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0">
+                        <TextBlock Style="{StaticResource Label}" Text="РУЧНОЙ ВВОД" VerticalAlignment="Center"/>
+                        <Button x:Name="ManualCloseButton" Style="{StaticResource IconButton}"
+                                Width="22" Height="22" HorizontalAlignment="Right" ToolTip="Вернуться к ссылке"
+                                Click="ManualClose_Click">
+                            <Path Style="{StaticResource Icon}" Data="{StaticResource I.Close}"
+                                  Width="12" Height="12" Stretch="Uniform" StrokeThickness="3"/>
+                        </Button>
+                    </Grid>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,8,0,8" Padding="0,0,8,0">
+                        <Border x:Name="ManualPanel" Background="Transparent">
+                            <StackPanel>
+                                <!-- Без подписи поле читается как «поиск»: дизайнер
+                                     не догадается, что сюда идёт имя дизайна. -->
+                                <TextBlock Style="{StaticResource Label}" Text="ИМЯ ДИЗАЙНА"
+                                           Margin="2,0,0,5"/>
+                                <TextBox x:Name="ManualNameBox" Style="{StaticResource Field}"
+                                         Height="32" Margin="0,0,0,8"
+                                         TextChanged="ManualName_Changed"/>
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="92"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <TextBlock x:Name="LblBrand" Grid.Row="0" Grid.Column="0" Text="Направление"
+                                               Style="{StaticResource Body}" VerticalAlignment="Center"/>
+                                    <ComboBox x:Name="BrandCombo" Grid.Row="0" Grid.Column="1" Margin="0,1.5" Height="26"
+                                              Style="{StaticResource Combo}" SelectionChanged="ManualBrand_Changed"/>
+
+                                    <TextBlock x:Name="LblType" Grid.Row="1" Grid.Column="0" Text="Тип продукта"
+                                               Style="{StaticResource Body}" VerticalAlignment="Center"/>
+                                    <ComboBox x:Name="TypeCombo" Grid.Row="1" Grid.Column="1" Margin="0,1.5" Height="26"
+                                              Style="{StaticResource Combo}" SelectionChanged="ManualType_Changed"/>
+
+                                    <TextBlock x:Name="LblTech" Grid.Row="2" Grid.Column="0" Text="Печать"
+                                               Style="{StaticResource Body}" VerticalAlignment="Center"/>
+                                    <ComboBox x:Name="TechCombo" Grid.Row="2" Grid.Column="1" Margin="0,1.5" Height="26"
+                                              Style="{StaticResource Combo}" SelectionChanged="ManualDetail_Changed"/>
+
+                                    <TextBlock x:Name="LblVariant" Grid.Row="3" Grid.Column="0" Text="Вариант"
+                                               Style="{StaticResource Body}" VerticalAlignment="Center"/>
+                                    <ComboBox x:Name="VariantCombo" Grid.Row="3" Grid.Column="1" Margin="0,1.5" Height="26"
+                                              Style="{StaticResource Combo}"/>
+
+                                    <TextBlock x:Name="LblCountry" Grid.Row="4" Grid.Column="0" Text="Страна"
+                                               Style="{StaticResource Body}" VerticalAlignment="Center"/>
+                                    <ComboBox x:Name="CountryCombo" Grid.Row="4" Grid.Column="1" Margin="0,1.5" Height="26"
+                                              Style="{StaticResource Combo}"/>
+
+                                    <TextBlock x:Name="LblMaterial" Grid.Row="5" Grid.Column="0" Text="Материал"
+                                               Style="{StaticResource Body}" VerticalAlignment="Center"/>
+                                    <ComboBox x:Name="MaterialCombo" Grid.Row="5" Grid.Column="1" Margin="0,1.5" Height="26"
+                                              Style="{StaticResource Combo}" SelectionChanged="ManualDetail_Changed"/>
+
+                                    <TextBlock x:Name="LblCoating" Grid.Row="6" Grid.Column="0" Text="Покрытие"
+                                               Style="{StaticResource Body}" VerticalAlignment="Center"/>
+                                    <ComboBox x:Name="CoatingCombo" Grid.Row="6" Grid.Column="1" Margin="0,1.5" Height="26"
+                                              Style="{StaticResource Combo}"/>
+                                </Grid>
+
+                                <TextBlock x:Name="ManualProductInfo" Style="{StaticResource Body}"
+                                           Margin="2,10,0,0"/>
+                            </StackPanel>
+                        </Border>
+                    </ScrollViewer>
+
+                    <Button x:Name="ManualBuildButton" Grid.Row="2" Style="{StaticResource PrimaryAction}"
+                            IsEnabled="False" Click="BuildButton_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Style="{StaticResource Icon}" Data="{StaticResource I.FolderPlus}"
+                                  Width="17" Height="17" Stretch="Uniform" StrokeThickness="2.4"
+                                  Margin="0,0,9,0"/>
+                            <TextBlock Text="Создать проект" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </Grid>
+
+            <!-- ═══════════ ПОДВАЛ ═══════════ -->
+            <Button x:Name="JournalToggle" Grid.Row="3" Style="{StaticResource Ghost}"
+                    Height="{StaticResource Size.Footer}" Padding="14,0"
+                    HorizontalContentAlignment="Stretch" Click="JournalToggle_Click">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Path Grid.Column="0" Style="{StaticResource Icon}" Data="{StaticResource I.ChevronUp}"
+                          Width="13" Height="13" Stretch="Uniform" StrokeThickness="2.8"
+                          VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <TextBlock Grid.Column="1" Style="{StaticResource Body}" Text="Журнал"
+                               VerticalAlignment="Center"/>
+                    <TextBlock x:Name="FooterHint" Grid.Column="2" Style="{StaticResource Mono}"
+                               HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                </Grid>
+            </Button>
+
+            <!-- ═══════════ ШТОРКА ЖУРНАЛА ═══════════ -->
+            <!-- Поверх всего: окно от журнала не растёт. Раньше он разворачивал
+                 окно вниз, и положение кнопок уезжало на 90 пикселей. -->
+            <Grid x:Name="JournalOverlay" Grid.RowSpan="4" Visibility="Collapsed" Panel.ZIndex="10">
+                <Rectangle Fill="{StaticResource Scrim}" MouseLeftButtonDown="JournalScrim_Click"/>
+                <Border x:Name="JournalSheet" VerticalAlignment="Bottom"
+                        Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}"
+                        BorderThickness="0,1,0,0" CornerRadius="14,14,0,0"
+                        RenderTransformOrigin="0.5,1">
+                    <Border.RenderTransform>
+                        <TranslateTransform x:Name="JournalShift"/>
+                    </Border.RenderTransform>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0" Margin="14,10,10,8">
+                            <StackPanel Orientation="Horizontal">
+                                <Path Style="{StaticResource IconPlain}" Data="{StaticResource I.Doc}"
+                                      Stroke="{StaticResource Dim}" Width="14" Height="14"
+                                      Stretch="Uniform" StrokeThickness="2.6" Margin="0,0,8,0"/>
+                                <TextBlock Style="{StaticResource Value}" Text="Журнал" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <Button Style="{StaticResource IconButton}" Width="22" Height="22"
+                                    HorizontalAlignment="Right" Click="JournalToggle_Click" ToolTip="Закрыть">
+                                <Path Style="{StaticResource Icon}" Data="{StaticResource I.Close}"
+                                      Width="12" Height="12" Stretch="Uniform" StrokeThickness="3"/>
+                            </Button>
+                        </Grid>
+
+                        <ScrollViewer x:Name="JournalScroll" Grid.Row="1" MaxHeight="180"
+                                      VerticalScrollBarVisibility="Auto" Margin="14,0,10,10">
+                            <ItemsControl x:Name="LogBox">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,0,7">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Path Grid.Column="0" Style="{StaticResource IconPlain}"
+                                                  Data="{Binding Icon}" Stroke="{Binding IconBrush}"
+                                                  Width="13" Height="13" Stretch="Uniform" StrokeThickness="2.6"
+                                                  VerticalAlignment="Top" Margin="0,2,8,0"/>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource Mono}"
+                                                       Foreground="#3E4A5C" Text="{Binding Time}"
+                                                       VerticalAlignment="Top" Margin="0,1,8,0"/>
+                                            <TextBlock Grid.Column="2" Style="{StaticResource Body}"
+                                                       Text="{Binding Text}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <Grid Grid.Row="2" Margin="14,0,10,9">
+                            <Border BorderBrush="{StaticResource LineSoft}" BorderThickness="0,1,0,0"
+                                    VerticalAlignment="Top" Margin="0,0,0,0"/>
+                            <TextBlock x:Name="CatalogStamp" Style="{StaticResource Mono}"
+                                       Foreground="#3E4A5C" VerticalAlignment="Center" Margin="0,9,0,0"/>
+                            <Button x:Name="ReloadCatalogButton" Style="{StaticResource LinkAction}"
+                                    HorizontalAlignment="Right" Margin="0,9,0,0"
+                                    Click="ReloadCatalog_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <Path Style="{StaticResource Icon}" Data="{StaticResource I.Refresh}"
+                                          Width="15" Height="15" Stretch="Uniform" StrokeThickness="2.3"
+                                          Margin="0,0,6,0"/>
+                                    <TextBlock Text="Перечитать" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                    </Grid>
                 </Border>
-
-                <Button x:Name="BuildButton" Style="{StaticResource CreateButton}"
-                        Margin="0,12,0,0" Content="СОЗДАТЬ ПРОЕКТ" IsEnabled="False" Click="BuildButton_Click"/>
-            </StackPanel>
-
-            <!-- Переключатель журнала -->
-            <Button x:Name="ToggleLogButton" Grid.Row="5" Style="{StaticResource FlatText}"
-                    Margin="0,8,0,0" Content="📄 Показать журнал" Click="ToggleLogButton_Click"/>
-
-            <!-- Журнал (скрыт по умолчанию) -->
-            <Border x:Name="LogPanel" Grid.Row="6" Margin="0,6,0,0" CornerRadius="14" Padding="12,8"
-                    Background="#020617" BorderBrush="#111827" BorderThickness="1" Visibility="Collapsed">
-                <TextBox x:Name="LogBox" Height="84" IsReadOnly="True" TextWrapping="Wrap"
-                         VerticalScrollBarVisibility="Auto" Background="Transparent"
-                         Foreground="{StaticResource TextMain}" BorderThickness="0" FontSize="12"/>
-            </Border>
+            </Grid>
         </Grid>
     </Border>
 </Window>

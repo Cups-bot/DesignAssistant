@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CupsCore;
 using CupsForge;
@@ -87,8 +88,15 @@ public static class UiChecks
 
     private static void Inspect(Checker check, AutoWindow w)
     {
-        var manual = w.FindName("ManualPanel") as Border;
-        check.True("ручная панель по умолчанию скрыта", manual?.Visibility != Visibility.Visible);
+        // Габарит окна — константа во всех состояниях. Это главное обещание
+        // редизайна: раньше стояло SizeToContent, окно росло от каждой панели,
+        // и кнопка «Создать проект» ездила на десятки пикселей между заказами.
+        double width = w.ActualWidth;
+        double height = w.ActualHeight;
+        Snapshot(w, "1-пусто");
+
+        check.True("окно начинается пустым состоянием",
+                   Visible(w, "StateEmpty") && !Visible(w, "StateManual"));
 
         if (w.FindName("PencilButton") is not Button pencil)
         {
@@ -97,12 +105,22 @@ public static class UiChecks
         }
 
         pencil.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-        check.True("карандаш раскрывает ручную панель", manual?.Visibility == Visibility.Visible);
+        check.True("карандаш переводит окно в ручной ввод",
+                   Visible(w, "StateManual") && !Visible(w, "StateEmpty"));
+        SameSize(check, w, "ручной ввод", width, height);
+        Snapshot(w, "2-ручной-ввод");
 
-        // Встречная проверка к запрету ниже: на настроенном рабочем месте ручной
-        // ввод обязан работать. Иначе «починка» кнопки выключила бы её всем.
-        check.True("на настроенном месте ручной ввод разрешает «Создать проект»",
-                   (w.FindName("BuildButton") as Button)?.IsEnabled == true);
+        // «Создать проект» существует только когда есть что создавать: пустое
+        // имя дизайна — не повод звать сборщик, чтобы тот пожаловался в журнал.
+        check.True("без имени дизайна создавать нечего",
+                   (w.FindName("ManualBuildButton") as Button)?.IsEnabled == false);
+
+        if (w.FindName("ManualNameBox") is TextBox nameBox)
+        {
+            nameBox.Text = "132583 CarBar ST DW90-430";
+            check.True("на настроенном месте ручной ввод разрешает «Создать проект»",
+                       (w.FindName("ManualBuildButton") as Button)?.IsEnabled == true);
+        }
 
         // Списки строятся из каталога, поэтому проверяем именно их содержимое.
         check.Equal("направления из каталога", Items(w, "BrandCombo"),
@@ -135,18 +153,105 @@ public static class UiChecks
             check.True("шоколад → строка «Материал» скрыта", !Visible(w, "MaterialCombo"));
         }
 
-        WizardCancelled(check);
-
-        // Панель проверки данных должна сворачиваться.
-        if (w.FindName("SpecBody") is Grid body && w.FindName("SpecToggle") is Button toggle)
+        // Журнал — шторка ПОВЕРХ сцены. Раньше он разворачивал окно вниз,
+        // и всё, что ниже, уезжало. Проверяем и то, что открылся, и то,
+        // что окно от этого не выросло.
+        if (w.FindName("JournalToggle") is Button journal)
         {
-            var before = body.Visibility;
-            toggle.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-            check.True("«Проверка данных» сворачивается", before != body.Visibility);
-            check.Equal("шеврон меняется",
-                        (w.FindName("SpecChevron") as TextBlock)?.Text,
-                        body.Visibility == Visibility.Visible ? "⌃" : "⌄");
+            journal.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            check.True("журнал открывается шторкой", Visible(w, "JournalOverlay"));
+            Snapshot(w, "3-журнал");
+            SameSize(check, w, "журнал", width, height);
+
+            journal.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            check.True("журнал закрывается", !Visible(w, "JournalOverlay"));
         }
+
+        // Возврат из ручного ввода — окно по-прежнему того же размера.
+        if (w.FindName("ManualCloseButton") is Button back)
+        {
+            back.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            check.True("закрытие ручного ввода возвращает к ссылке", Visible(w, "StateEmpty"));
+            SameSize(check, w, "возврат к ссылке", width, height);
+        }
+
+        WizardCancelled(check);
+    }
+
+    /// <summary>
+    /// Даёт окну пожить указанное время, не блокируя его поток: обычный Sleep
+    /// на потоке интерфейса остановил бы и анимации, которых мы ждём.
+    /// </summary>
+    private static void Pump(Window w, TimeSpan time)
+    {
+        var frame = new DispatcherFrame();
+        var timer = new DispatcherTimer(time, DispatcherPriority.Background,
+            (_, _) => frame.Continue = false, w.Dispatcher);
+        timer.Start();
+        Dispatcher.PushFrame(frame);
+        timer.Stop();
+    }
+
+    /// <summary>
+    /// Снимок окна в файл. Зелёная проверка говорит, что элементы на месте,
+    /// но не что окно выглядит правильно: съехавший отступ, невидимый на тёмном
+    /// текст и не прокрасившийся системный контрол проверками не ловятся.
+    ///
+    /// Включается переменной среды CUPSFORGE_SNAPSHOT=папка — по умолчанию
+    /// прогон файлов не пишет.
+    /// </summary>
+    private static void Snapshot(Window w, string name)
+    {
+        string? folder = Environment.GetEnvironmentVariable("CUPSFORGE_SNAPSHOT");
+        if (string.IsNullOrWhiteSpace(folder))
+            return;
+
+        try
+        {
+            Directory.CreateDirectory(folder);
+
+            // Без принудительного пересчёта снимок берёт дерево ДО перестройки:
+            // состояние уже переключено, а на картинке предыдущее (и чаще пустое).
+            // Снимок, который врёт, хуже отсутствующего.
+            //
+            // Пересчёта мало: шторка выезжает анимацией, и снимок ловил её на
+            // полпути — низ оказывался срезан, и это выглядело как ошибка вёрстки.
+            // Крутим очередь сообщений, пока анимации не встанут.
+            w.UpdateLayout();
+            Pump(w, TimeSpan.FromMilliseconds(450));
+            w.UpdateLayout();
+
+            // Масштаб 2x: на снимке видно сглаживание и полупиксельные отступы.
+            var bitmap = new RenderTargetBitmap(
+                (int)(w.ActualWidth * 2), (int)(w.ActualHeight * 2), 192, 192, PixelFormats.Pbgra32);
+            bitmap.Render(w);
+
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(bitmap));
+
+            using var stream = File.Create(Path.Combine(folder, name + ".png"));
+            encoder.Save(stream);
+        }
+        catch
+        {
+            // Снимок — удобство, а не проверка: не вышло, и ладно.
+        }
+    }
+
+    /// <summary>
+    /// Габарит окна не изменился. Вынесено отдельно: это обещание нарушается
+    /// незаметно — достаточно одного SizeToContent или панели, вставленной
+    /// в строку сетки вместо слоя поверх.
+    /// </summary>
+    private static void SameSize(Checker check, Window w, string what, double width, double height)
+    {
+        bool same = Math.Abs(w.ActualWidth - width) < 0.5 &&
+                    Math.Abs(w.ActualHeight - height) < 0.5;
+
+        check.True(same
+                ? $"габарит окна не изменился ({what})"
+                : $"габарит окна не изменился ({what}) — было {width}x{height}, стало {w.ActualWidth}x{w.ActualHeight}",
+            same);
     }
 
     /// <summary>
@@ -227,15 +332,20 @@ public static class UiChecks
                 check.True("отмена мастера гасит «Создать проект»",
                     (window.FindName("BuildButton") as Button)?.IsEnabled == false);
                 check.True("отмена мастера объясняется на экране",
-                    (window.FindName("SetupWarningBar") as UIElement)?.Visibility == Visibility.Visible);
+                    (window.FindName("NoticeBar") as UIElement)?.Visibility == Visibility.Visible);
+                check.True("причина видна в самом уведомлении",
+                    !string.IsNullOrWhiteSpace((window.FindName("NoticeText") as TextBlock)?.Text));
 
                 // Настоящая ловушка: кнопка выключена и так, по разметке. Но карандаш
                 // включал её безусловно — и «Создать проект» звал сборщик с папками,
                 // которых нет. Ручной ввод не обходит ненастроенное рабочее место.
                 (window.FindName("PencilButton") as Button)?
                     .RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                if (window.FindName("ManualNameBox") is TextBox box)
+                    box.Text = "132583 CarBar ST DW90-430";
+
                 check.True("ручной ввод не обходит ненастроенное рабочее место",
-                    (window.FindName("BuildButton") as Button)?.IsEnabled == false);
+                    (window.FindName("ManualBuildButton") as Button)?.IsEnabled == false);
             }
             finally
             {

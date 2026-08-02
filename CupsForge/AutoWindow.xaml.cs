@@ -1,5 +1,7 @@
+using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media.Animation;
 using CupsCore;
 using CupsForge.Models;
 using CupsForge.Services;
@@ -11,6 +13,17 @@ namespace CupsForge
         private readonly AppConfig _config = AppConfig.Load();
         private ResolvedDesign? _resolved;
 
+        /// <summary>
+        /// Состояния окна. Ровно одно видно в каждый момент — это и есть
+        /// «один следующий шаг»: пока идёт проверка, кнопки «Создать проект»
+        /// не существует, а не «она есть, но погашена».
+        ///
+        /// empty → checking → result → running → done → empty
+        /// </summary>
+        private enum Stage { Empty, Checking, Result, Running, Done, Manual }
+
+        private Stage _stage = Stage.Empty;
+
         public AutoWindow()
         {
             InitializeComponent();
@@ -19,40 +32,179 @@ namespace CupsForge
             // проверку связи отсюда, где есть HTTP-клиент.
             SettingsWindow.ConnectionTest = BitrixProbe.TestAsync;
 
-            // Мастер настройки покажется только если рабочих папок на этой машине нет
-            // (первый запуск на домашнем компьютере). В офисе окно не появляется.
+            ResultFields.ItemsSource = _fields;
+            LogBox.ItemsSource = _log;
+            FooterHint.Text = "v" + Updater.CurrentVersion;
+
             Loaded += (_, _) =>
             {
                 // Возвращённый признак нельзя игнорировать: отказ от мастера
                 // означает, что рабочих папок нет, и создавать проект некуда.
                 ApplySetupState(SettingsWindow.EnsureConfigured(this));
-                SetSpecExpanded(MachineProfile.Current.SpecPanelExpanded, remember: false);
                 ReportCatalog();
                 CheckForUpdate();
                 CheckDistribution();
+                SetStage(Stage.Empty);
+                OfferClipboard();
+            };
+
+            // Ссылку могли скопировать, пока окно было свёрнуто.
+            Activated += (_, _) =>
+            {
+                if (_stage == Stage.Empty)
+                    OfferClipboard();
             };
         }
 
+        // ═══════════ окно ═══════════
+
+        private void Close_Click(object sender, MouseButtonEventArgs e) => Close();
+        private void Minimize_Click(object sender, MouseButtonEventArgs e) => WindowState = WindowState.Minimized;
+
+        // ═══════════ состояния ═══════════
+
+        private void SetStage(Stage stage)
+        {
+            _stage = stage;
+
+            StateEmpty.Visibility    = Visible(stage == Stage.Empty);
+            StateChecking.Visibility = Visible(stage == Stage.Checking);
+            StateResult.Visibility   = Visible(stage == Stage.Result);
+            StateRunning.Visibility  = Visible(stage == Stage.Running);
+            StateDone.Visibility     = Visible(stage == Stage.Done);
+            StateManual.Visibility   = Visible(stage == Stage.Manual);
+
+            _manualMode = stage == Stage.Manual;
+
+            // Крутилки живут только в своём состоянии: анимация под невидимым
+            // слоем продолжала бы будить отрисовку без всякой пользы.
+            Spin(SpinnerRotation, stage == Stage.Checking);
+            Slide(RunningBarShift, stage == Stage.Running);
+
+            RefreshBuildAvailability();
+
+            if (stage == Stage.Empty)
+                LinkBox.Focus();
+        }
+
+        private static Visibility Visible(bool show) => show ? Visibility.Visible : Visibility.Collapsed;
+
+        private void Spin(System.Windows.Media.RotateTransform target, bool run)
+        {
+            if (!run)
+            {
+                target.BeginAnimation(System.Windows.Media.RotateTransform.AngleProperty, null);
+                return;
+            }
+
+            target.BeginAnimation(System.Windows.Media.RotateTransform.AngleProperty,
+                new DoubleAnimation(0, 360, new Duration(TimeSpan.FromSeconds(0.85)))
+                {
+                    RepeatBehavior = RepeatBehavior.Forever
+                });
+        }
+
+        private void Slide(System.Windows.Media.TranslateTransform target, bool run)
+        {
+            if (!run)
+            {
+                target.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty, null);
+                return;
+            }
+
+            target.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty,
+                new DoubleAnimation(-120, 360, new Duration(TimeSpan.FromSeconds(1.1)))
+                {
+                    RepeatBehavior = RepeatBehavior.Forever
+                });
+        }
+
+        // ═══════════ уведомления ═══════════
+
+        private readonly List<Notice> _notices = new();
+
         /// <summary>
-        /// Настроено ли рабочее место. Пока нет — «Создать проект» недоступно
-        /// в любом режиме, и на экране висит причина со ссылкой в настройки.
-        /// Раньше отмена мастера не меняла ничего: дизайнер жал «Создать проект»
-        /// и получал не «настройте папки», а невнятное «файл шаблона не найден».
+        /// Ставит сообщение в очередь. Повторный вызов с тем же Id заменяет
+        /// прежнее, а не добавляет второе: иначе за смену накапливается десяток
+        /// одинаковых «Доступна версия».
         /// </summary>
+        private void ShowNotice(string id, string text, NoticeKind kind,
+                                string? actionTitle = null, Action? action = null)
+        {
+            _notices.RemoveAll(n => n.Id == id);
+            _notices.Add(new Notice
+            {
+                Id = id, Text = text, Kind = kind,
+                ActionTitle = actionTitle, Action = action
+            });
+
+            // Блокирующие — вперёд: без них работать всё равно нельзя.
+            _notices.Sort((a, b) => b.Kind.CompareTo(a.Kind));
+            RefreshNotice();
+        }
+
+        private void DropNotice(string id)
+        {
+            _notices.RemoveAll(n => n.Id == id);
+            RefreshNotice();
+        }
+
+        private void RefreshNotice()
+        {
+            Notice? top = _notices.Count > 0 ? _notices[0] : null;
+            if (top == null)
+            {
+                NoticeBar.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            NoticeText.Text = top.Text;
+            NoticeIcon.Data = top.Icon;
+            NoticeIcon.Stroke = top.IconBrush;
+
+            NoticeAction.Content = top.ActionTitle;
+            NoticeAction.Visibility = Visible(top.ActionTitle != null);
+            NoticeAction.IsEnabled = true;
+            NoticeClose.Visibility = Visible(top.Dismissable);
+
+            NoticeBar.Visibility = Visibility.Visible;
+        }
+
+        private void NoticeAction_Click(object sender, RoutedEventArgs e)
+        {
+            if (_notices.Count == 0)
+                return;
+
+            // Действие может занять время — гасим кнопку, чтобы не нажали дважды.
+            NoticeAction.IsEnabled = false;
+            _notices[0].Action?.Invoke();
+        }
+
+        private void NoticeClose_Click(object sender, RoutedEventArgs e)
+        {
+            if (_notices.Count > 0 && _notices[0].Dismissable)
+                DropNotice(_notices[0].Id);
+        }
+
+        // ═══════════ настроенность рабочего места ═══════════
+
         private bool _configured = true;
 
         private void ApplySetupState(bool configured)
         {
             _configured = configured;
 
-            SetupWarningBar.Visibility = configured ? Visibility.Collapsed : Visibility.Visible;
-            if (!configured)
+            if (configured)
+            {
+                DropNotice(NoticeIds.Setup);
+            }
+            else
             {
                 SettingsWindow.NeedsWizard(out string why);
-                SetupWarning.Text = string.IsNullOrWhiteSpace(why)
-                    ? "Рабочее место не настроено — создавать проект некуда."
-                    : why;
-                Log("Рабочее место не настроено. " + why);
+                ShowNotice(NoticeIds.Setup,
+                    string.IsNullOrWhiteSpace(why) ? "Рабочее место не настроено" : why,
+                    NoticeKind.Blocking, "Настроить", () => OpenSettings());
+                Log(why, NoticeKind.Blocking);
             }
 
             RefreshBuildAvailability();
@@ -60,19 +212,20 @@ namespace CupsForge
 
         /// <summary>
         /// Единственное место, где решается доступность «Создать проект».
-        /// Раньше её включали и гасили из четырёх мест, и они разошлись:
-        /// карандаш включал кнопку безусловно, отменяя и проверку артикула,
-        /// и ненастроенное рабочее место.
+        /// Раньше её включали и гасили из четырёх мест, и они разошлись.
         /// </summary>
         private void RefreshBuildAvailability()
         {
-            BuildButton.IsEnabled = _configured && (_manualMode || _canBuildResolved);
+            bool allowed = _configured && (_stage == Stage.Manual ? _manualNameFilled : _canBuildResolved);
+            BuildButton.IsEnabled = allowed;
+            ManualBuildButton.IsEnabled = allowed;
         }
 
-        /// <summary>Загруженный заказ пригоден к созданию проекта (артикул на месте и т.п.).</summary>
         private bool _canBuildResolved;
 
-        private void SettingsButton_Click(object sender, RoutedEventArgs e)
+        private void SettingsButton_Click(object sender, RoutedEventArgs e) => OpenSettings();
+
+        private void OpenSettings()
         {
             var window = new SettingsWindow { Owner = this };
             if (window.ShowDialog() != true)
@@ -82,34 +235,63 @@ namespace CupsForge
 
             // Папки могли появиться прямо сейчас — снимаем запрет, не требуя перезапуска.
             ApplySetupState(!SettingsWindow.NeedsWizard(out _));
+            ReportCatalog();
         }
 
-        // ---------- окно ----------
-        private void Close_Click(object sender, MouseButtonEventArgs e) => Close();
-        private void Minimize_Click(object sender, MouseButtonEventArgs e) => WindowState = WindowState.Minimized;
+        // ═══════════ буфер обмена ═══════════
 
-        // Высота окна меняется автоматически (SizeToContent) при появлении/скрытии
-        // панели проверки. Держим нижний край на месте — окно растёт вверх.
-        private void Window_SizeChanged(object sender, SizeChangedEventArgs e)
+        private string _clipboardOffered = "";
+
+        /// <summary>
+        /// Ссылку почти всегда копируют из браузера перед тем, как открыть
+        /// программу. Предлагаем взять её сами — это снимает «щёлкнуть в поле,
+        /// Ctrl+V» с каждого заказа. Молча подставлять не годится: в буфере
+        /// может лежать что угодно, и подмена введённого была бы хамством.
+        /// </summary>
+        private void OfferClipboard()
         {
-            if (!IsLoaded || !e.HeightChanged)
+            string text;
+            try
+            {
+                text = Clipboard.ContainsText() ? Clipboard.GetText().Trim() : "";
+            }
+            catch
+            {
+                return; // буфер занят другой программой — не повод шуметь
+            }
+
+            if (string.IsNullOrWhiteSpace(text) ||
+                text == _clipboardOffered ||
+                text == LinkBox.Text.Trim() ||
+                !LinkParser.TryParseId(text, out long id, out _))
+            {
                 return;
+            }
 
-            double delta = e.NewSize.Height - e.PreviousSize.Height;
-            Top -= delta;
+            _clipboardOffered = text;
+            ClipboardText.Text = $"В буфере: заказ {id}";
+            ClipboardHint.Visibility = Visibility.Visible;
         }
 
-        protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
+        private void ClipboardTake_Click(object sender, RoutedEventArgs e)
         {
-            base.OnMouseLeftButtonDown(e);
-            if (e.ButtonState == MouseButtonState.Pressed)
-                DragMove();
+            LinkBox.Text = _clipboardOffered;
+            ClipboardHint.Visibility = Visibility.Collapsed;
+            _ = FetchAsync();
         }
 
-        // ---------- получение данных ----------
+        // ═══════════ получение данных ═══════════
+
         private void LinkBox_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Enter) _ = FetchAsync();
+        }
+
+        private void LinkBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+        {
+            // Вставили сами — подсказка про буфер больше не нужна.
+            if (!string.IsNullOrWhiteSpace(LinkBox.Text))
+                ClipboardHint.Visibility = Visibility.Collapsed;
         }
 
         private void FetchButton_Click(object sender, RoutedEventArgs e) => _ = FetchAsync();
@@ -117,140 +299,235 @@ namespace CupsForge
         private async Task FetchAsync()
         {
             _resolved = null;
-            // Кнопка зависит от валидности данных, а не от факта нажатия Enter:
-            // в ручном режиме загрузка заказа её не касается, иначе случайный
-            // Enter в поле ссылки блокировал бы ручной ввод.
             _canBuildResolved = false;
-            RefreshBuildAvailability();
-            SpecPanel.Visibility = Visibility.Collapsed;
-            WarnPanel.Visibility = Visibility.Collapsed;
 
             if (!LinkParser.TryParseId(LinkBox.Text, out long id, out string err))
             {
-                Log(err);
+                Log(err, NoticeKind.Warning);
+                ShowNotice(NoticeIds.Link, err, NoticeKind.Warning);
                 return;
             }
+
+            DropNotice(NoticeIds.Link);
 
             string auth = _config.Bitrix.ResolveAuthHeader();
             if (string.IsNullOrEmpty(auth))
             {
-                Log(BitrixAccess.NotConfiguredMessage);
+                Log(BitrixAccess.NotConfiguredMessage, NoticeKind.Blocking);
+                ShowNotice(NoticeIds.Bitrix, "Не задан доступ к Bitrix",
+                           NoticeKind.Warning, "Настроить", () => OpenSettings());
                 return;
             }
 
-            SetBusy(true);
+            CheckingLink.Text = $"заказ {id}";
+            SetStage(Stage.Checking);
             Log($"Запрос данных заказа #{id}…");
 
             try
             {
                 using var client = new BitrixClient(_config.Bitrix);
                 DesignData data = await client.GetDataAsync(id);
+                if (_closed) return;
 
                 // Код дизайна берём из названия заказа (отдельный эндпоинт не нужен).
                 var resolved = BitrixMapper.Map(data, "");
                 _resolved = resolved;
 
-                ShowSpec(resolved);
-
-                // Артикул обязателен не всегда: у шоколада шаблон выбирается по вкусу,
-                // и пустой артикул — норма. Спрашиваем у каталога, а не гадаем.
-                bool needsArticle = CatalogService.Current.Match(resolved.ToBuildRequest().Spec)
-                                        is not { Variants.Count: > 0 };
-                _canBuildResolved = !string.IsNullOrWhiteSpace(resolved.DesignCode)
-                                    && (!needsArticle || !string.IsNullOrWhiteSpace(resolved.ProductArticul));
-                RefreshBuildAvailability();
-                Log($"Данные получены: {resolved.Brand} · {resolved.ProductArticul}. Проверьте и нажмите «Создать проект».");
+                ShowResult(resolved);
+                Log($"Данные получены: {resolved.Brand} · {resolved.ProductArticul}.");
             }
             catch (BitrixException bex)
             {
-                Log("Ошибка: " + bex.Message);
+                if (_closed) return;
+                Log("Ошибка: " + bex.Message, NoticeKind.Blocking);
+                SetStage(Stage.Empty);
             }
             catch (Exception ex)
             {
-                Log("Сбой запроса: " + ex.Message);
-            }
-            finally
-            {
-                SetBusy(false);
+                if (_closed) return;
+                Log("Сбой запроса: " + ex.Message, NoticeKind.Blocking);
+                SetStage(Stage.Empty);
             }
         }
 
-        private void ShowSpec(ResolvedDesign r)
+        // ═══════════ результат ═══════════
+
+        private readonly ObservableCollection<ResultField> _fields = new();
+
+        /// <summary>
+        /// Показывает разобранный заказ. Строки собираются из данных: пустые
+        /// не показываются вовсе. Раньше панель всегда рисовала все десять
+        /// строк, половина из которых была «—», и глаз тонул в прочерках.
+        /// </summary>
+        private void ShowResult(ResolvedDesign r)
         {
-            ValBrand.Text    = string.IsNullOrWhiteSpace(r.RawProject) ? r.Brand.ToString() : $"{r.RawProject}  →  {r.Brand}";
-            ValOrder.Text    = r.Id.ToString();
-            ValName.Text     = r.OrderName;
-            ValType.Text     = string.IsNullOrWhiteSpace(r.RawType) ? r.ProductType : $"{r.RawType}  →  {r.ProductType}";
-            ValArticul.Text  = string.IsNullOrWhiteSpace(r.ProductArticul) ? "—" : r.ProductArticul;
-            ValPrint.Text    = $"{r.RawPrint}  →  {r.PrintTech}";
-            ValMaterial.Text = $"{r.RawSide}  →  {r.Material}";
-            ValCoating.Text  = string.IsNullOrWhiteSpace(r.RawCoating) ? "—" : $"{r.RawCoating}  →  {r.Coating}";
-            // Вкус показывается там, где он есть: сверять его глазами тоже нужно.
-            ValVariant.Text  = string.IsNullOrWhiteSpace(r.Variant)
-                ? "—"
-                : (string.IsNullOrWhiteSpace(r.RawFlavor) ? r.Variant : $"{r.RawFlavor}  →  {r.Variant}");
+            _fields.Clear();
 
-            ValCountry.Text  = r.Brand == Brand.CuptoYou
-                ? (string.IsNullOrWhiteSpace(r.RawLang) ? r.Country.ToString() : $"{r.RawLang}  →  {r.Country}")
-                : "—";
+            Add("Заказ", r.Id.ToString());
+            Add("Название", r.OrderName);
+            Add("Направление", Mapped(r.RawProject, r.Brand.ToString()));
+            Add("Тип", Mapped(r.RawType, r.ProductType));
+            Add("Печать", Mapped(r.RawPrint, r.PrintTech.ToString()));
+            Add("Материал", Mapped(r.RawSide, r.Material.ToString()));
 
-            if (r.Warnings.Count > 0)
+            if (!string.IsNullOrWhiteSpace(r.RawCoating))
+                Add("Покрытие", Mapped(r.RawCoating, r.Coating.ToString()));
+
+            if (!string.IsNullOrWhiteSpace(r.Variant))
+                Add("Вкус / вид", Mapped(r.RawFlavor, r.Variant));
+
+            if (r.Brand == Brand.CuptoYou)
+                Add("Страна", Mapped(r.RawLang, r.Country.ToString()));
+
+            // Артикул обязателен не всегда: у шоколада шаблон выбирается по вкусу,
+            // и пустой артикул — норма. Спрашиваем у каталога, а не гадаем.
+            bool needsArticle = CatalogService.Current.Match(r.ToBuildRequest().Spec)
+                                    is not { Variants.Count: > 0 };
+            bool articleMissing = needsArticle && string.IsNullOrWhiteSpace(r.ProductArticul);
+
+            _fields.Add(new ResultField
             {
-                WarnText.Text = "⚠ " + string.Join("\n⚠ ", r.Warnings);
-                WarnPanel.Visibility = Visibility.Visible;
+                Label = "Артикул",
+                Value = articleMissing ? "не распознан" : r.ProductArticul,
+                Warn = articleMissing
+            });
+
+            bool nameMissing = string.IsNullOrWhiteSpace(r.DesignCode);
+            _canBuildResolved = !nameMissing && !articleMissing;
+
+            if (_canBuildResolved)
+            {
+                ResultHeadline.Text = "Заказ распознан";
+                ResultSubline.Text = r.DesignCode;
+                ResultBadgeIcon.Data = Ui.Icon("I.Check");
+                ResultBadgeIcon.Stroke = Ui.Brush("Ok");
+                ResultBadge.Background = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromArgb(0x1A, 0x34, 0xD3, 0x99));
+                BuildButtonText.Text = "Создать проект";
             }
             else
             {
-                WarnPanel.Visibility = Visibility.Collapsed;
+                ResultHeadline.Text = nameMissing ? "Не разобрано имя дизайна" : "Артикул не распознан";
+                ResultSubline.Text = nameMissing ? r.OrderName : r.DesignCode;
+                ResultBadgeIcon.Data = Ui.Icon("I.Warn");
+                ResultBadgeIcon.Stroke = Ui.Brush("Warn");
+                ResultBadge.Background = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromArgb(0x17, 0xFB, 0xBF, 0x24));
+                BuildButtonText.Text = "Поправить вручную";
             }
 
-            SpecPanel.Visibility = Visibility.Visible;
-        }
+            foreach (string warning in r.Warnings)
+                Log(warning, NoticeKind.Warning);
 
-        // ---------- создание проекта ----------
-        private void BuildButton_Click(object sender, RoutedEventArgs e)
-        {
-            // Источник один и тот же ProjectBuilder — меняется только то,
-            // откуда взялись параметры: из Bitrix или из полей ручного ввода.
-            if (_manualMode)
+            SetStage(Stage.Result);
+
+            void Add(string label, string value)
             {
-                ReportBuild(ProjectBuilder.Build(BuildManualRequest()));
-                return;
+                if (!string.IsNullOrWhiteSpace(value))
+                    _fields.Add(new ResultField { Label = label, Value = value });
             }
 
-            if (_resolved == null)
-            {
-                Log("Сначала загрузите данные заказа.");
-                return;
-            }
-
-            BuildResult result = ProjectBuilder.Build(_resolved.ToBuildRequest());
-            ReportBuild(result);
+            static string Mapped(string raw, string result) =>
+                string.IsNullOrWhiteSpace(raw) ? result : $"{raw}  →  {result}";
         }
-
-        private void ReportBuild(BuildResult result)
-        {
-            foreach (var line in result.Log)
-                Log(line);
-
-            if (result.Success && !result.AlreadyExisted)
-                Log("Готово.");
-        }
-
-        // ---------- ручной ввод ----------
 
         /// <summary>
-        /// Карандаш раскрывает панель ручного ввода прямо здесь. Раньше он запускал
-        /// вторую программу по жёстко прописанному пути и передавал данные через
-        /// временный файл — на чужой машине этот путь всегда был неверным.
+        /// Клик по строке результата. Пока ведёт в ручной ввод целиком;
+        /// лист на одно поле — следующий шаг, под него уже есть FixKey.
         /// </summary>
+        private void ResultField_Click(object sender, RoutedEventArgs e)
+        {
+            if (_resolved == null)
+                return;
+
+            FillManualFrom(_resolved);
+            SetStage(Stage.Manual);
+        }
+
+        // ═══════════ создание проекта ═══════════
+
+        private BuildResult? _lastBuild;
+
+        private void BuildButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Результат с неразобранным артикулом ведёт не в сборку, а в правку.
+            if (_stage == Stage.Result && !_canBuildResolved)
+            {
+                if (_resolved != null)
+                    FillManualFrom(_resolved);
+                SetStage(Stage.Manual);
+                return;
+            }
+
+            BuildRequest request;
+            if (_stage == Stage.Manual)
+            {
+                request = BuildManualRequest();
+            }
+            else if (_resolved != null)
+            {
+                request = _resolved.ToBuildRequest();
+            }
+            else
+            {
+                Log("Сначала загрузите данные заказа.", NoticeKind.Warning);
+                return;
+            }
+
+            RunningPath.Text = request.DesignCode;
+            SetStage(Stage.Running);
+
+            // Источник один и тот же ProjectBuilder — меняется только то,
+            // откуда взялись параметры: из Bitrix или из полей ручного ввода.
+            BuildResult result = ProjectBuilder.Build(request);
+            _lastBuild = result;
+
+            foreach (var line in result.Log)
+                Log(line, result.Success ? NoticeKind.Info : NoticeKind.Blocking);
+
+            if (!result.Success)
+            {
+                ShowNotice(NoticeIds.Build, "Проект не создан — подробности в журнале",
+                           NoticeKind.Warning);
+                SetStage(_stage == Stage.Running && _resolved != null ? Stage.Result : Stage.Manual);
+                return;
+            }
+
+            DropNotice(NoticeIds.Build);
+
+            DoneHeadline.Text = result.IllustratorLaunched
+                ? "Illustrator открывает макет"
+                : result.AlreadyExisted ? "Папка уже существовала" : "Проект создан";
+            DonePath.Text = result.ProjectPath;
+            SetStage(Stage.Done);
+        }
+
+        private void NextOrder_Click(object sender, RoutedEventArgs e)
+        {
+            _resolved = null;
+            _canBuildResolved = false;
+            _fields.Clear();
+            LinkBox.Clear();
+            SetStage(Stage.Empty);
+            OfferClipboard();
+        }
+
+        private void OpenFolder_Click(object sender, RoutedEventArgs e)
+        {
+            string? path = _lastBuild?.ProjectPath;
+            if (string.IsNullOrWhiteSpace(path))
+                return;
+
+            try { System.Diagnostics.Process.Start("explorer.exe", path); }
+            catch (Exception ex) { Log("Не удалось открыть папку: " + ex.Message, NoticeKind.Warning); }
+        }
+
+        // ═══════════ ручной ввод ═══════════
+
         private void PencilButton_Click(object sender, RoutedEventArgs e)
         {
-            bool show = ManualPanel.Visibility != Visibility.Visible;
-            ToggleManual(show);
-
-            if (!show)
-                return;
+            if (BrandCombo.ItemsSource == null)
+                InitManual();
 
             // Если заказ загружен — переносим его в поля, чтобы поправить и создать.
             if (_resolved != null)
@@ -258,71 +535,84 @@ namespace CupsForge
                 FillManualFrom(_resolved);
                 Log("Данные заказа перенесены в поля ручного ввода.");
             }
+
+            SetStage(Stage.Manual);
         }
 
-        /// <summary>
-        /// Говорит, откуда взят каталог. Если работаем на копии внутри программы,
-        /// а файл на машине настроен — правки дизайнера не действуют, и молчать
-        /// об этом нельзя: со стороны выглядит как «замена каталога не помогает».
-        /// </summary>
+        private void ManualClose_Click(object sender, RoutedEventArgs e) =>
+            SetStage(_resolved != null ? Stage.Result : Stage.Empty);
+
+        private void ManualName_Changed(object sender, System.Windows.Controls.TextChangedEventArgs e)
+        {
+            _manualNameFilled = !string.IsNullOrWhiteSpace(ManualNameBox.Text);
+            RefreshBuildAvailability();
+        }
+
+        private bool _manualNameFilled;
+
+        // ═══════════ каталог ═══════════
+
         private void ReportCatalog()
         {
             try
             {
                 var catalog = CatalogService.Current;
+                CatalogStamp.Text = $"каталог v{catalog.Version} · {catalog.Updated}";
                 Log($"Каталог: версия {catalog.Version} от {catalog.Updated} — {catalog.SourceName}");
 
                 if (!CatalogService.IsUsingEmbedded)
+                {
+                    DropNotice(NoticeIds.Catalog);
                     return;
+                }
 
                 string expected = CatalogService.ExpectedPath;
                 if (string.IsNullOrWhiteSpace(expected))
                     return;
 
-                CatalogWarning.Text =
-                    "Каталог взят из копии внутри программы — правки файла не действуют. " +
-                    $"Ожидался здесь: {expected}";
-                CatalogWarningBar.Visibility = Visibility.Visible;
+                ShowNotice(NoticeIds.Catalog, "Каталог взят из копии внутри программы", NoticeKind.Warning);
+                Log($"Правки каталога не действуют. Ожидался здесь: {expected}", NoticeKind.Warning);
 
                 foreach (string line in CatalogService.LoadLog)
-                    Log("  " + line);
+                    Log("  " + line, NoticeKind.Warning);
             }
             catch (CatalogException ex)
             {
-                Log(ex.Message);
+                CatalogStamp.Text = "каталог не загружен";
+                Log(ex.Message, NoticeKind.Blocking);
             }
         }
 
-        // ---------- обновление ----------
+        private void ReloadCatalog_Click(object sender, RoutedEventArgs e)
+        {
+            CatalogService.Reload();
+            ReportCatalog();
+        }
+
+        // ═══════════ обновление ═══════════
 
         private ReleaseInfo? _update;
 
-        /// <summary>
-        /// Тихо смотрит, нет ли на раздаче версии новее. Ничего не нашли или
-        /// раздача недоступна (удалёнка) — пользователь об этом не узнаёт.
-        /// </summary>
         private void CheckForUpdate()
         {
             // Прошлая попытка могла провалиться молча: подменяет файл скрипт без
-            // окна, и сказать об этом на экране он не может. Его след — первое,
-            // что нужно показать: человек сидит на старой версии и не знает.
+            // окна, и сказать об этом на экране он не может.
             string? previous = Updater.TakeUpdateProblem();
             if (previous != null)
             {
-                Log(previous);
-                UpdateText.Text = "Прошлое обновление не применилось";
-                UpdateBar.Visibility = Visibility.Visible;
+                Log(previous, NoticeKind.Warning);
+                ShowNotice(NoticeIds.UpdateFailed, "Прошлое обновление не применилось", NoticeKind.Warning);
             }
 
             try
             {
                 _update = Updater.Check(out string? diagnosis);
                 if (diagnosis != null)
-                    Log(diagnosis);
+                    Log(diagnosis, NoticeKind.Warning);
             }
             catch (Exception ex)
             {
-                Log("Проверка обновлений не удалась: " + ex.Message);
+                Log("Проверка обновлений не удалась: " + ex.Message, NoticeKind.Warning);
                 return;
             }
 
@@ -334,43 +624,34 @@ namespace CupsForge
         }
 
         /// <summary>
-        /// Показывает полоску обновления — но кнопку предлагает только если
-        /// обновиться действительно можно. Раньше кнопка была всегда, и при
-        /// запуске не из своей папки человек получал отказ уже по нажатию:
-        /// со стороны это выглядит как сломанная программа, а не как правило.
+        /// Предлагает обновиться — но только если обновиться действительно можно.
+        /// Раньше кнопка была всегда, и при запуске не из своей папки человек
+        /// получал отказ уже по нажатию: со стороны это выглядит как поломка.
         /// </summary>
         private void OfferUpdate(string headline)
         {
             if (Updater.CanApplyHere(out string? cannot))
             {
-                UpdateText.Text = headline;
-                UpdateButton.Visibility = Visibility.Visible;
-                UpdateButton.IsEnabled = true;
-            }
-            else
-            {
-                UpdateText.Text = headline + " — обновиться отсюда нельзя";
-                UpdateButton.Visibility = Visibility.Collapsed;
-                Log(cannot!);
+                ShowNotice(NoticeIds.Update, headline, NoticeKind.Info, "Обновить", ApplyUpdate);
+                return;
             }
 
-            UpdateBar.Visibility = Visibility.Visible;
+            ShowNotice(NoticeIds.Update, headline + " — обновиться отсюда нельзя", NoticeKind.Warning);
+            Log(cannot!, NoticeKind.Warning);
         }
 
-        private async void UpdateButton_Click(object sender, RoutedEventArgs e)
+        private async void ApplyUpdate()
         {
-            UpdateButton.IsEnabled = false;
-            UpdateText.Text = "Обновление…";
-
             // Из раздачи: качаем по сети и подменяем.
             if (_update == null && _distApp != null)
             {
                 var (data, downloadError) = await DistributionClient.DownloadAppAsync(_distApp);
+                if (_closed) return;
+
                 if (data == null)
                 {
-                    UpdateButton.IsEnabled = true;
-                    UpdateText.Text = $"Доступна версия {_distApp.Version}";
-                    Log(downloadError ?? "Не удалось скачать обновление.");
+                    Log(downloadError ?? "Не удалось скачать обновление.", NoticeKind.Warning);
+                    RefreshNotice();
                     return;
                 }
 
@@ -380,15 +661,14 @@ namespace CupsForge
                     return;
                 }
 
-                UpdateButton.IsEnabled = true;
-                UpdateText.Text = $"Доступна версия {_distApp.Version}";
-                Log(applyError);
+                Log(applyError, NoticeKind.Warning);
+                RefreshNotice();
                 return;
             }
 
             if (_update == null)
             {
-                UpdateBar.Visibility = Visibility.Collapsed;
+                DropNotice(NoticeIds.Update);
                 return;
             }
 
@@ -400,53 +680,66 @@ namespace CupsForge
                 return;
             }
 
-            UpdateButton.IsEnabled = true;
-            UpdateText.Text = $"Доступна версия {_update.Version}";
-            Log(error);
+            Log(error, NoticeKind.Warning);
+            RefreshNotice();
         }
 
-        // ---------- сворачивание панели проверки ----------
+        // ═══════════ журнал ═══════════
 
-        private void SpecToggle_Click(object sender, RoutedEventArgs e) =>
-            SetSpecExpanded(SpecBody.Visibility != Visibility.Visible, remember: true);
+        private readonly ObservableCollection<LogEntry> _log = new();
 
-        private void SetSpecExpanded(bool expanded, bool remember)
+        private void JournalToggle_Click(object sender, RoutedEventArgs e) => ToggleJournal();
+        private void JournalScrim_Click(object sender, MouseButtonEventArgs e) => ToggleJournal();
+
+        private void ToggleJournal()
         {
-            SpecBody.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
-            SpecChevron.Text = expanded ? "⌃" : "⌄";
+            bool show = JournalOverlay.Visibility != Visibility.Visible;
+            JournalOverlay.Visibility = Visible(show);
 
-            if (!remember)
+            if (!show)
                 return;
 
-            // Состояние переживает перезапуск — оно в профиле рабочего места.
-            var profile = MachineProfile.Current;
-            if (profile.SpecPanelExpanded == expanded)
+            // Выезд снизу: шторка, а не внезапно возникшая панель.
+            JournalShift.BeginAnimation(System.Windows.Media.TranslateTransform.YProperty,
+                new DoubleAnimation(40, 0, (Duration)FindResource("M.Base"))
+                {
+                    EasingFunction = (IEasingFunction)FindResource("Ease")
+                });
+
+            JournalScroll.ScrollToEnd();
+        }
+
+        private void Log(string message, NoticeKind kind = NoticeKind.Info)
+        {
+            if (string.IsNullOrWhiteSpace(message))
                 return;
 
-            profile.SpecPanelExpanded = expanded;
-            try { profile.Save(); }
-            catch (Exception ex) { Log("Не удалось сохранить настройку панели: " + ex.Message); }
-        }
+            _log.Add(new LogEntry
+            {
+                Time = DateTime.Now.ToString("HH:mm"),
+                Text = message,
+                Kind = kind
+            });
 
-        private void ToggleLogButton_Click(object sender, RoutedEventArgs e)
-        {
-            bool show = LogPanel.Visibility != Visibility.Visible;
-            LogPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-            ToggleLogButton.Content = show ? "📄 Скрыть журнал" : "📄 Показать журнал";
+            // Журнал за смену вырастает в тысячи строк, а нужны последние.
+            while (_log.Count > 200)
+                _log.RemoveAt(0);
         }
+    }
 
-        // ---------- служебное ----------
-        private void SetBusy(bool busy)
-        {
-            FetchButton.IsEnabled = !busy;
-            LinkBox.IsEnabled = !busy;
-            Cursor = busy ? Cursors.Wait : Cursors.Arrow;
-        }
-
-        private void Log(string message)
-        {
-            LogBox.AppendText($"{message}{Environment.NewLine}");
-            LogBox.ScrollToEnd();
-        }
+    /// <summary>
+    /// Поводы для уведомлений. Строками, а не enum: список открытый, и каждый
+    /// повод должен уметь снять сам себя, когда причина исчезла.
+    /// </summary>
+    internal static class NoticeIds
+    {
+        public const string Setup = "setup";
+        public const string Update = "update";
+        public const string UpdateFailed = "update-failed";
+        public const string Sync = "sync";
+        public const string Catalog = "catalog";
+        public const string Bitrix = "bitrix";
+        public const string Link = "link";
+        public const string Build = "build";
     }
 }

@@ -62,36 +62,30 @@ namespace CupsForge
             // Согласие уже давали — обновляемся молча.
             if (MachineProfile.Current.AutoSyncTemplates)
             {
-                await RunSync(silent: true);
+                await RunSync();
                 return;
             }
 
-            SyncText.Text = _plan.IsFirstSync
-                ? $"Шаблоны ещё не скачаны: {_plan.Describe()}"
-                : $"Обновление шаблонов: {_plan.Describe()}";
-            SyncButton.Content = "Скачать";
-            SyncButton.IsEnabled = true;
-            SyncBar.Visibility = Visibility.Visible;
+            ShowNotice(NoticeIds.Sync,
+                _plan.IsFirstSync
+                    ? $"Шаблоны ещё не скачаны: {_plan.Describe()}"
+                    : $"Обновление шаблонов: {_plan.Describe()}",
+                NoticeKind.Info, "Скачать", () => _ = RunSync());
         }
 
-        private async void SyncButton_Click(object sender, RoutedEventArgs e) =>
-            await RunSync(silent: false);
-
-        private async Task RunSync(bool silent)
+        private async Task RunSync()
         {
             if (_plan == null || _plan.IsEmpty || _syncing)
                 return;
 
             _syncing = true;
-            SyncButton.IsEnabled = false;
-            SyncBar.Visibility = Visibility.Visible;
 
             // Progress отдаёт в поток окна, но приходит и после закрытия — сотни
             // файлов качаются долго, и последние доклады запросто переживут окно.
             var progress = new Progress<string>(name =>
             {
                 if (!_closed)
-                    SyncText.Text = "Скачиваю " + name;
+                    ShowNotice(NoticeIds.Sync, "Скачиваю " + name, NoticeKind.Info);
             });
 
             try
@@ -108,10 +102,10 @@ namespace CupsForge
 
                 if (error != null)
                 {
-                    SyncText.Text = $"Скачано {done} из {_plan.Files.Count}, дальше не вышло";
-                    SyncButton.Content = "Повторить";
-                    SyncButton.IsEnabled = true;
-                    Log("Обновление шаблонов: " + error);
+                    ShowNotice(NoticeIds.Sync,
+                        $"Скачано {done} из {_plan.Files.Count}, дальше не вышло",
+                        NoticeKind.Warning, "Повторить", () => _ = RunSync());
+                    Log("Обновление шаблонов: " + error, NoticeKind.Warning);
                     return;
                 }
 
@@ -130,7 +124,7 @@ namespace CupsForge
                 CatalogService.Reload();
                 ReportCatalog();
 
-                SyncBar.Visibility = Visibility.Collapsed;
+                DropNotice(NoticeIds.Sync);
                 _plan = null;
             }
             catch (Exception ex)
@@ -138,10 +132,9 @@ namespace CupsForge
                 if (_closed)
                     return;
 
-                SyncText.Text = "Обновление не удалось";
-                SyncButton.Content = "Повторить";
-                SyncButton.IsEnabled = true;
-                Log("Обновление шаблонов: " + ex.Message);
+                ShowNotice(NoticeIds.Sync, "Обновление не удалось",
+                           NoticeKind.Warning, "Повторить", () => _ = RunSync());
+                Log("Обновление шаблонов: " + ex.Message, NoticeKind.Warning);
             }
             finally
             {

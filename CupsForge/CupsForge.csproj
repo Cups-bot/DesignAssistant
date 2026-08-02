@@ -29,8 +29,8 @@
   <!-- Общий модуль (пути/шаблоны/enum'ы) — единый источник с ручным редактором -->
   <ItemGroup>
     <Compile Include="..\Shared\**\*.cs" Link="Shared\%(RecursiveDir)%(Filename)%(Extension)" />
-    <!-- Окно настроек тоже общее: одна разметка на обе программы. -->
-    <Page Include="..\Shared\SettingsWindow.xaml" Link="Shared\SettingsWindow.xaml" />
+    <!-- Панель настроек — общая разметка, живёт в слое Shared. -->
+    <Page Include="..\Shared\SettingsPanel.xaml" Link="Shared\SettingsPanel.xaml" />
     <!-- Дизайн-токены и иконки. Пути в Link задают адрес pack://, по которому
          словари подключаются в App.xaml, — менять его вместе с Source. -->
     <Page Include="..\Shared\Theme\Tokens.xaml" Link="Shared\Theme\Tokens.xaml" />

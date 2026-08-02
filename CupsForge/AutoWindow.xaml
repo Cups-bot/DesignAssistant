@@ -477,6 +477,20 @@
                 </Grid>
             </Button>
 
+            <!-- ═══════════ ПАНЕЛЬ НАСТРОЕК ═══════════ -->
+            <!-- Выезжает справа ВНУТРИ окна. Отдельным окном было хуже: второе
+                 окно в таскбаре и потеря контекста заказа. Модальность заодно
+                 была непроверяема — прогон на ней вис. -->
+            <Grid x:Name="SettingsOverlay" Grid.RowSpan="4" Visibility="Collapsed" Panel.ZIndex="20">
+                <Rectangle Fill="{StaticResource Scrim}" MouseLeftButtonDown="SettingsScrim_Click"/>
+                <ContentControl x:Name="SettingsHost" HorizontalAlignment="Right"
+                                RenderTransformOrigin="1,0.5">
+                    <ContentControl.RenderTransform>
+                        <TranslateTransform x:Name="SettingsShift"/>
+                    </ContentControl.RenderTransform>
+                </ContentControl>
+            </Grid>
+
             <!-- ═══════════ ШТОРКА ЖУРНАЛА ═══════════ -->
             <!-- Поверх всего: окно от журнала не растёт. Раньше он разворачивал
                  окно вниз, и положение кнопок уезжало на 90 пикселей. -->

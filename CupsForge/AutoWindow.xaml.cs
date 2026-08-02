@@ -30,7 +30,7 @@ namespace CupsForge
 
             // Окно настроек живёт в общем слое и о Bitrix не знает — даём ему
             // проверку связи отсюда, где есть HTTP-клиент.
-            SettingsWindow.ConnectionTest = BitrixProbe.TestAsync;
+            SettingsPanel.ConnectionTest = BitrixProbe.TestAsync;
 
             ResultFields.ItemsSource = _fields;
             LogBox.ItemsSource = _log;
@@ -42,9 +42,13 @@ namespace CupsForge
 
             Loaded += (_, _) =>
             {
-                // Возвращённый признак нельзя игнорировать: отказ от мастера
-                // означает, что рабочих папок нет, и создавать проект некуда.
-                ApplySetupState(SettingsWindow.EnsureConfigured(this));
+                // Настроено ли рабочее место. Если нет — панель открывается сама
+                // и не закрывается, пока папки не найдутся: за ней всё равно нет
+                // ничего, чем можно пользоваться.
+                bool needs = SettingsPanel.NeedsWizard(out string why);
+                ApplySetupState(!needs);
+                if (needs)
+                    OpenSettings(why);
                 ReportCatalog();
                 CheckForUpdate();
                 CheckDistribution();
@@ -204,7 +208,7 @@ namespace CupsForge
             }
             else
             {
-                SettingsWindow.NeedsWizard(out string why);
+                SettingsPanel.NeedsWizard(out string why);
                 ShowNotice(NoticeIds.Setup,
                     string.IsNullOrWhiteSpace(why) ? "Рабочее место не настроено" : why,
                     NoticeKind.Blocking, "Настроить", () => OpenSettings());
@@ -227,20 +231,70 @@ namespace CupsForge
 
         private bool _canBuildResolved;
 
+        // ═══════════ панель настроек ═══════════
+
+        private SettingsPanel? _settings;
+
         private void SettingsButton_Click(object sender, RoutedEventArgs e) => OpenSettings();
 
-        private void OpenSettings()
+        private void SettingsScrim_Click(object sender, MouseButtonEventArgs e)
         {
-            var window = new SettingsWindow { Owner = this };
-            if (window.ShowDialog() != true)
+            // Пока рабочее место не настроено, закрыть панель щелчком мимо нельзя:
+            // за ней всё равно нет ничего, чем можно пользоваться.
+            if (!_configured)
                 return;
 
-            Log("Настройки сохранены.");
-
-            // Папки могли появиться прямо сейчас — снимаем запрет, не требуя перезапуска.
-            ApplySetupState(!SettingsWindow.NeedsWizard(out _));
-            ReportCatalog();
+            CloseSettings();
         }
+
+        /// <summary>
+        /// Открывает панель настроек. <paramref name="announce"/> — почему она
+        /// открылась сама (первый запуск, пропали папки).
+        /// </summary>
+        private void OpenSettings(string? announce = null)
+        {
+            if (_settings == null)
+            {
+                _settings = new SettingsPanel();
+                _settings.Saved += (_, _) =>
+                {
+                    Log("Настройки сохранены.");
+                    // Папки могли появиться прямо сейчас — снимаем запрет,
+                    // не требуя перезапуска.
+                    ApplySetupState(!SettingsPanel.NeedsWizard(out _));
+                    ReportCatalog();
+
+                    if (_configured)
+                        CloseSettings();
+                    else
+                        _settings!.Announce("Часть папок всё ещё не найдена.");
+                };
+                _settings.Cancelled += (_, _) =>
+                {
+                    if (_configured)
+                        CloseSettings();
+                    else
+                        _settings!.Announce("Без рабочих папок создать проект не получится.");
+                };
+                SettingsHost.Content = _settings;
+            }
+
+            _settings.Load();
+            if (announce != null)
+                _settings.Announce(announce);
+
+            SettingsOverlay.Visibility = Visibility.Visible;
+
+            // Выезд справа — из-за края окна, а не «возникает на месте».
+            SettingsShift.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty,
+                new DoubleAnimation((double)FindResource("Size.SettingsPanel"), 0,
+                                    (Duration)FindResource("M.Base"))
+                {
+                    EasingFunction = (IEasingFunction)FindResource("Ease")
+                });
+        }
+
+        private void CloseSettings() => SettingsOverlay.Visibility = Visibility.Collapsed;
 
         // ═══════════ буфер обмена ═══════════
 

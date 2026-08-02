@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Media;
+using CupsCore;
 
 namespace CupsForge
 {
@@ -100,21 +101,5 @@ namespace CupsForge
             NoticeKind.Warning => Ui.Brush("Warn"),
             _ => Ui.Brush("Danger")
         };
-    }
-
-    /// <summary>
-    /// Доступ к токенам из кода.
-    ///
-    /// Цвета и иконки нужны и в разметке, и в коде (строка журнала выбирает
-    /// значок по своему виду). Брать их отсюда, а не заводить второй набор
-    /// констант в C#: иначе тема разъедется ровно пополам.
-    /// </summary>
-    public static class Ui
-    {
-        public static Brush Brush(string key) =>
-            Application.Current?.TryFindResource(key) as Brush ?? Brushes.Gray;
-
-        public static Geometry Icon(string key) =>
-            Application.Current?.TryFindResource(key) as Geometry ?? Geometry.Empty;
     }
 }

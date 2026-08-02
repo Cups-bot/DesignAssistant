@@ -154,6 +154,70 @@
         <Setter Property="Padding" Value="8,3"/>
     </Style>
 
+    <!-- ============ СЕГМЕНТНЫЙ ПЕРЕКЛЮЧАТЕЛЬ ============ -->
+    <!-- Два взаимоисключающих режима. Системный RadioButton показал бы кружки
+         в стиле Windows — в тёмном окне они выглядят вставленными из другой
+         программы, а два кружка занимают больше места, чем две подписи. -->
+    <Style x:Key="Segment" TargetType="RadioButton">
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+        <Setter Property="FontFamily" Value="{StaticResource F.Regular}"/>
+        <Setter Property="FontSize" Value="{StaticResource T.Body}"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border x:Name="b" CornerRadius="6" Background="Transparent" Padding="0,6">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource Text}"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="b" Property="Background" Value="{StaticResource AccentDeep}"/>
+                            <Setter Property="Foreground" Value="#F8FAFC"/>
+                            <Setter Property="FontFamily" Value="{StaticResource F.Semibold}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ============ МЕЛКАЯ КНОПКА-ОБВОДКА ============ -->
+    <!-- «Изменить», «Обзор…», «Проверить» — действия внутри строки настроек.
+         Обводка вместо заливки: заливка спорила бы с главным действием. -->
+    <Style x:Key="Outline" TargetType="Button">
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Padding" Value="9,4"/>
+        <Setter Property="FontFamily" Value="{StaticResource F.Regular}"/>
+        <Setter Property="FontSize" Value="{StaticResource T.Label}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="b" CornerRadius="7" BorderThickness="1"
+                            BorderBrush="{StaticResource Line}"
+                            Background="{TemplateBinding Background}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="b" Property="BorderBrush" Value="{StaticResource AccentDeep}"/>
+                            <Setter Property="Foreground" Value="{StaticResource Text}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="b" Property="Opacity" Value="0.45"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- ============ ПОЛОСА ПРОКРУТКИ ============ -->
     <!--
         По образцу Telegram: тонкая капля без дорожки, без стрелок и без фона.

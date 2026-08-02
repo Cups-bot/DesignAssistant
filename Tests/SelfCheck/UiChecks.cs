@@ -32,9 +32,9 @@ public static class UiChecks
         var profile = MachineProfile.FromStakanyRoot(sandbox);
         profile.IllustratorExe = Path.Combine(sandbox, "no-illustrator.exe");
 
-        // Создаём ВСЕ рабочие папки: иначе окно при запуске покажет мастер настройки
-        // модально, и прогон повиснет — закрыть его в тесте некому.
-        // Это же и проверка того, что при полном комплекте папок мастер не лезет.
+        // Создаём ВСЕ рабочие папки: при полном комплекте панель настроек
+        // не открывается сама, и окно начинается с обычного пустого состояния.
+        // Случай «папок нет» проверяется отдельно, в WizardCancelled.
         foreach (string key in MachineProfile.Root.AllIncludingBase)
             Directory.CreateDirectory(profile.Roots[key]);
 
@@ -174,6 +174,24 @@ public static class UiChecks
             back.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             check.True("закрытие ручного ввода возвращает к ссылке", Visible(w, "StateEmpty"));
             SameSize(check, w, "возврат к ссылке", width, height);
+        }
+
+        // Настройки — панель справа ПОВЕРХ сцены, не второе окно.
+        if (w.FindName("SettingsButton") is Button gear)
+        {
+            gear.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            check.True("шестерёнка открывает панель настроек", Visible(w, "SettingsOverlay"));
+            Snapshot(w, "4-настройки");
+            SameSize(check, w, "настройки", width, height);
+
+            if (w.FindName("SettingsHost") is ContentControl host &&
+                host.Content is SettingsPanel panel &&
+                panel.FindName("CancelButton") is Button cancel)
+            {
+                cancel.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                check.True("на настроенном месте панель закрывается отменой",
+                           !Visible(w, "SettingsOverlay"));
+            }
         }
 
         WizardCancelled(check);
@@ -399,21 +417,41 @@ public static class UiChecks
             MachineProfile.Set(MachineProfile.FromStakanyRoot(
                 Path.Combine(Path.GetTempPath(), "cupsforge_selfcheck_ui", "нет-такой-папки")));
 
-            check.True("без рабочих папок мастер нужен", SettingsWindow.NeedsWizard(out string why));
+            check.True("без рабочих папок мастер нужен", SettingsPanel.NeedsWizard(out string why));
             check.True("причина названа словами", !string.IsNullOrWhiteSpace(why));
 
-            // Имитируем «Отмена» — показать настоящий диалог прогон не может.
-            SettingsWindow.WizardOverride = _ => false;
+            // Раньше здесь стояла подмена показа диалога: мастер был модальным
+            // окном, и прогон на нём вис — закрыть его некому. Панель внутри
+            // окна проверяется как обычная разметка, шов больше не нужен.
             var window = new AutoWindow();
             try
             {
                 window.Show();
-                check.True("отмена мастера гасит «Создать проект»",
+                window.UpdateLayout();
+
+                check.True("панель настроек открывается сама",
+                    (window.FindName("SettingsOverlay") as UIElement)?.Visibility == Visibility.Visible);
+                check.True("ненастроенное место гасит «Создать проект»",
                     (window.FindName("BuildButton") as Button)?.IsEnabled == false);
-                check.True("отмена мастера объясняется на экране",
+                check.True("ненастроенное место объясняется на экране",
                     (window.FindName("NoticeBar") as UIElement)?.Visibility == Visibility.Visible);
                 check.True("причина видна в самом уведомлении",
                     !string.IsNullOrWhiteSpace((window.FindName("NoticeText") as TextBlock)?.Text));
+
+                // Закрыть панель, ничего не настроив, нельзя: за ней всё равно
+                // нет ничего, чем можно пользоваться.
+                if (window.FindName("SettingsHost") is ContentControl host &&
+                    host.Content is SettingsPanel panel &&
+                    panel.FindName("CancelButton") is Button cancel)
+                {
+                    cancel.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                    check.True("отмена не закрывает панель, пока папок нет",
+                        (window.FindName("SettingsOverlay") as UIElement)?.Visibility == Visibility.Visible);
+                }
+                else
+                {
+                    check.Fail("панель настроек не найдена внутри окна");
+                }
 
                 // Настоящая ловушка: кнопка выключена и так, по разметке. Но карандаш
                 // включал её безусловно — и «Создать проект» звал сборщик с папками,
@@ -437,7 +475,7 @@ public static class UiChecks
         }
         finally
         {
-            SettingsWindow.WizardOverride = null;
+
             MachineProfile.Set(saved);
         }
     }

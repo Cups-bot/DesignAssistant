@@ -13,12 +13,20 @@
       Теперь это проверяет компилятор: UseWPF здесь нет, ссылки на
       PresentationFramework нет, и попытка тронуть окно из ядра не соберётся.
 
-      Цель — net8.0 без «-windows»: ядро не зависит и от самой Windows,
-      кроме поиска Illustrator в реестре (он под условной компиляцией
-      не нуждается — Microsoft.Win32.Registry работает как пакет).
+      Цель — net8.0-WINDOWS, но БЕЗ UseWPF. Разница принципиальная:
+      «-windows» говорит, что ядро работает с реестром (там ищется Illustrator),
+      с буквами дисков и с профилем пользователя Windows — это правда, и без
+      пометки компилятор справедливо ругался на каждое обращение к реестру.
+      А отсутствие UseWPF означает, что окон здесь нет и не будет.
+
+      Сначала стояло просто net8.0 — с комментарием, что ядро не зависит
+      от Windows. Это было неправдой, и десять предупреждений об этом честно
+      сообщали.
   -->
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>false</UseWPF>
+    <UseWindowsForms>false</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>CupsCore</RootNamespace>
@@ -33,9 +41,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Реестр нужен поиску Illustrator: он ставится куда угодно, и путь
-         к нему берётся оттуда, а не угадывается. -->
-    <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
     <!-- Обновление программы. Живёт в ядре, потому что не касается окон:
          решает, есть ли новая версия и откуда её взять. -->
     <PackageReference Include="Velopack" Version="1.2.0" />

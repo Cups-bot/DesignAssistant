@@ -61,15 +61,15 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);**\bin\**;**\obj\**</DefaultItemExcludes>
   </PropertyGroup>
 
-  <!-- Шрифты (переиспользуем из родительского проекта) -->
+  <!-- Шрифты. Только те начертания, что действительно применяются: остальные
+       восемь лежали в сборке мёртвым весом. Начертания заданы токенами
+       F.Regular / F.Medium / F.Semibold / F.Bold — добавлять сюда файл имеет
+       смысл только вместе с новым токеном. -->
   <ItemGroup>
-    <Resource Include="..\Fonts\SFProText-Bold.ttf" Link="Fonts\SFProText-Bold.ttf" />
-    <Resource Include="..\Fonts\SFProText-BoldItalic.ttf" Link="Fonts\SFProText-BoldItalic.ttf" />
-    <Resource Include="..\Fonts\SFProText-Light.ttf" Link="Fonts\SFProText-Light.ttf" />
-    <Resource Include="..\Fonts\SFProText-Medium.ttf" Link="Fonts\SFProText-Medium.ttf" />
-    <Resource Include="..\Fonts\SFProText-Regular.ttf" Link="Fonts\SFProText-Regular.ttf" />
+    <Resource Include="..\Fonts\SFProText-Regular.ttf"  Link="Fonts\SFProText-Regular.ttf" />
+    <Resource Include="..\Fonts\SFProText-Medium.ttf"   Link="Fonts\SFProText-Medium.ttf" />
     <Resource Include="..\Fonts\SFProText-Semibold.ttf" Link="Fonts\SFProText-Semibold.ttf" />
-    <Resource Include="..\Fonts\SFProText-SemiboldItalic.ttf" Link="Fonts\SFProText-SemiboldItalic.ttf" />
+    <Resource Include="..\Fonts\SFProText-Bold.ttf"     Link="Fonts\SFProText-Bold.ttf" />
   </ItemGroup>
 
   <!-- Иконки/картинки -->
@@ -77,6 +77,8 @@
     <Resource Include="..\Images\Icon\logo.ico" Link="Images\Icon\logo.ico">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Resource>
-    <Resource Include="..\Images\Icon\logo_white.ico" Link="Images\Icon\logo_white.ico" />
+    <!-- logo_white.ico в сборку НЕ попадает: он нигде не используется.
+         Файл оставлен в Images как исходник — вдруг понадобится под светлую
+         тему; в двоичный файл его тянуть незачем. -->
   </ItemGroup>
 </Project>

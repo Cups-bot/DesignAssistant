@@ -240,7 +240,7 @@
                             BorderThickness="1" ClipToBounds="True">
                         <Grid>
                         <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,10,0">
-                            <ItemsControl x:Name="ResultFields">
+                            <ItemsControl x:Name="ResultFields" Margin="0,0,0,16">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Button Style="{StaticResource Ghost}" Padding="0"
@@ -386,7 +386,7 @@
 
                     <Grid Grid.Row="1" Margin="0,8,0,8">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,10,0">
-                        <Border x:Name="ManualPanel" Background="Transparent">
+                        <Border x:Name="ManualPanel" Background="Transparent" Padding="0,0,0,18">
                             <StackPanel>
                                 <!-- Без подписи поле читается как «поиск»: дизайнер
                                      не догадается, что сюда идёт имя дизайна. -->
@@ -502,7 +502,17 @@
                 правит ровно то поле, по которому щёлкнули, и возвращает в тот же
                 результат. Список вариантов — ДАННЫЕ из каталога.
             -->
-            <Grid x:Name="FixOverlay" Grid.RowSpan="4" Visibility="Collapsed" Panel.ZIndex="15">
+                        <!--
+                IsHitTestVisibleInChrome ОБЯЗАТЕЛЕН для всего, что ложится поверх
+                сцены. WindowChrome с CaptionHeight=38 отдаёт верхние 38 пикселей
+                окна системе под перетаскивание и глотает там все клики. Панель
+                настроек занимает окно целиком, её крестик стоит на y≈12 — и
+                нажатие до него просто не доходило: кнопка выглядела сломанной.
+                Кнопка настроек в шапке работала ровно потому, что этот признак
+                у неё проставлен с самого начала.
+            -->
+            <Grid x:Name="FixOverlay" Grid.RowSpan="4"
+                  shell:WindowChrome.IsHitTestVisibleInChrome="True" Visibility="Collapsed" Panel.ZIndex="15">
                 <Rectangle Fill="{StaticResource Scrim}" MouseLeftButtonDown="FixScrim_Click"/>
                 <Border x:Name="FixSheet" VerticalAlignment="Bottom"
                         Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}"
@@ -572,7 +582,17 @@
             <!-- Выезжает справа ВНУТРИ окна. Отдельным окном было хуже: второе
                  окно в таскбаре и потеря контекста заказа. Модальность заодно
                  была непроверяема — прогон на ней вис. -->
-            <Grid x:Name="SettingsOverlay" Grid.RowSpan="4" Visibility="Collapsed" Panel.ZIndex="20">
+                        <!--
+                IsHitTestVisibleInChrome ОБЯЗАТЕЛЕН для всего, что ложится поверх
+                сцены. WindowChrome с CaptionHeight=38 отдаёт верхние 38 пикселей
+                окна системе под перетаскивание и глотает там все клики. Панель
+                настроек занимает окно целиком, её крестик стоит на y≈12 — и
+                нажатие до него просто не доходило: кнопка выглядела сломанной.
+                Кнопка настроек в шапке работала ровно потому, что этот признак
+                у неё проставлен с самого начала.
+            -->
+            <Grid x:Name="SettingsOverlay" Grid.RowSpan="4"
+                  shell:WindowChrome.IsHitTestVisibleInChrome="True" Visibility="Collapsed" Panel.ZIndex="20">
                 <Rectangle Fill="{StaticResource Scrim}" MouseLeftButtonDown="SettingsScrim_Click"/>
                 <ContentControl x:Name="SettingsHost" HorizontalAlignment="Right"
                                 RenderTransformOrigin="1,0.5">
@@ -585,7 +605,17 @@
             <!-- ═══════════ ШТОРКА ЖУРНАЛА ═══════════ -->
             <!-- Поверх всего: окно от журнала не растёт. Раньше он разворачивал
                  окно вниз, и положение кнопок уезжало на 90 пикселей. -->
-            <Grid x:Name="JournalOverlay" Grid.RowSpan="4" Visibility="Collapsed" Panel.ZIndex="10">
+                        <!--
+                IsHitTestVisibleInChrome ОБЯЗАТЕЛЕН для всего, что ложится поверх
+                сцены. WindowChrome с CaptionHeight=38 отдаёт верхние 38 пикселей
+                окна системе под перетаскивание и глотает там все клики. Панель
+                настроек занимает окно целиком, её крестик стоит на y≈12 — и
+                нажатие до него просто не доходило: кнопка выглядела сломанной.
+                Кнопка настроек в шапке работала ровно потому, что этот признак
+                у неё проставлен с самого начала.
+            -->
+            <Grid x:Name="JournalOverlay" Grid.RowSpan="4"
+                  shell:WindowChrome.IsHitTestVisibleInChrome="True" Visibility="Collapsed" Panel.ZIndex="10">
                 <Rectangle Fill="{StaticResource Scrim}" MouseLeftButtonDown="JournalScrim_Click"/>
                 <Border x:Name="JournalSheet" VerticalAlignment="Bottom"
                         Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}"
@@ -618,7 +648,7 @@
                         <Grid Grid.Row="1" Margin="14,0,10,10">
                         <ScrollViewer x:Name="JournalScroll" MaxHeight="180"
                                       VerticalScrollBarVisibility="Auto" Padding="0,0,10,0">
-                            <ItemsControl x:Name="LogBox">
+                            <ItemsControl x:Name="LogBox" Margin="0,0,0,16">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Grid Margin="0,0,0,7">

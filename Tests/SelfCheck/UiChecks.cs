@@ -188,6 +188,18 @@ public static class UiChecks
             SameSize(check, w, "возврат к ссылке", width, height);
         }
 
+        // WindowChrome отдаёт верхние 38 пикселей окна системе под перетаскивание
+        // и глотает там все клики. Всё, что ложится ПОВЕРХ сцены, занимает окно
+        // целиком — значит и эту полосу. Без признака IsHitTestVisibleInChrome
+        // кнопки в верхней части панели просто не нажимаются: крестик настроек
+        // выглядел сломанным, хотя обработчик был на месте.
+        foreach (string overlay in new[] { "SettingsOverlay", "JournalOverlay", "FixOverlay" })
+        {
+            bool clickable = w.FindName(overlay) is IInputElement o &&
+                             System.Windows.Shell.WindowChrome.GetIsHitTestVisibleInChrome(o);
+            check.True($"{overlay}: клики не съедаются полосой заголовка", clickable);
+        }
+
         FixOneField(check, w, width, height);
 
         // Настройки — панель справа ПОВЕРХ сцены, не второе окно.

@@ -39,7 +39,7 @@
             <!-- ─── содержимое ─── -->
             <Grid Grid.Row="1">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,10,0">
-                    <StackPanel Margin="14,0,4,10">
+                    <StackPanel Margin="14,0,4,24">
 
                         <!-- Режим -->
                         <TextBlock Style="{StaticResource Label}" Text="РАБОЧЕЕ МЕСТО" Margin="0,0,0,6"/>

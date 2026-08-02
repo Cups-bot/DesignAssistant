@@ -36,6 +36,9 @@ namespace CupsForge
             InitFixSheet();
             LogBox.ItemsSource = _log;
             FooterHint.Text = "v" + AppUpdates.CurrentVersion;
+            // Подсказка на версии: сразу видно, установлена программа или
+            // запущена портативно — от этого зависит, придут ли обновления.
+            FooterHint.ToolTip = AppUpdates.Unavailable() ?? "Обновления приходят сами";
 
             // Углы скругляет композитор Windows. Через прозрачность было бы
             // проще, но она отключает ClearType, и весь текст становится мягче.

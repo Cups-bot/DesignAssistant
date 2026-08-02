@@ -26,8 +26,10 @@
             Background="{StaticResource Panel}"
             BorderBrush="{StaticResource Line}" BorderThickness="1,1,0,1"
             Cursor="Hand"
-            ToolTip="CupsForge — нажмите, чтобы развернуть. Правой кнопкой — выйти."
-            MouseLeftButtonUp="Tab_Click"
+            ToolTip="CupsForge — нажмите, чтобы развернуть. Потяните, чтобы сдвинуть. Правой кнопкой — выйти."
+            MouseLeftButtonDown="Tab_MouseDown"
+            MouseMove="Tab_MouseMove"
+            MouseLeftButtonUp="Tab_MouseUp"
             MouseRightButtonUp="Tab_Exit">
         <Border.Effect>
             <DropShadowEffect BlurRadius="14" ShadowDepth="0" Opacity="0.45" Color="#000000"/>

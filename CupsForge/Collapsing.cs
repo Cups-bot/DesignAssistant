@@ -23,8 +23,15 @@ namespace CupsForge
     {
         private DockTab? _dock;
 
-        /// <summary>Где окно стояло до сворачивания — туда и вернём.</summary>
+        /// <summary>
+        /// Где окно стояло до сворачивания — туда и вернём.
+        ///
+        /// Запоминаются обе координаты. Раньше возвращалась только левая, и
+        /// достаточно было свернуть, подвинуть что-то на экране и развернуть,
+        /// чтобы окно оказалось не там, где его оставили.
+        /// </summary>
         private double _expandedLeft;
+        private double _expandedTop;
 
         /// <summary>Программа сейчас свёрнута в язычок.</summary>
         internal bool IsCollapsed => _dock is { IsVisible: true };
@@ -41,6 +48,7 @@ namespace CupsForge
 
             Rect work = ScreenEdge.WorkAreaFor(this);
             _expandedLeft = Left;
+            _expandedTop = Top;
 
             var slide = new DoubleAnimation(Left, work.Right, (Duration)FindResource("M.Base"))
             {
@@ -67,6 +75,16 @@ namespace CupsForge
                 _dock = new DockTab();
                 _dock.Expand += (_, _) => ExpandFromEdge();
 
+                // Перетащили язычок — запоминаем в профиле: человек двигает его
+                // один раз и ожидает найти там же завтра.
+                _dock.Moved += (_, top) =>
+                {
+                    MachineProfile.Current.SideDrawerTop = top;
+                    try { MachineProfile.Current.Save(); }
+                    catch (Exception ex) { Log("Не удалось запомнить место язычка: " + ex.Message,
+                                               NoticeKind.Warning); }
+                };
+
                 // Из свёрнутого вида иначе не выйти: главное окно спрятано,
                 // и закрыть программу было бы нечем.
                 _dock.Exit += (_, _) =>
@@ -77,7 +95,14 @@ namespace CupsForge
                 };
             }
 
-            _dock.ShowAt(work);
+            // По высоте язычок встаёт вровень с окном — там, где человек только
+            // что на него смотрел. Если язычок когда-то перетаскивали, побеждает
+            // выбранное положение: его выбирали осознанно, подальше от того,
+            // что мешает на экране.
+            double top = MachineProfile.Current.SideDrawerTop
+                         ?? _expandedTop + (ActualHeight - _dock.Height) / 2;
+
+            _dock.ShowAt(work, top);
         }
 
         /// <summary>Возвращает окно из-за края и убирает язычок.</summary>
@@ -91,7 +116,9 @@ namespace CupsForge
             _dock.Hide();
 
             // Показываем уже за краем, чтобы окно выехало, а не возникло.
+            // Вертикаль ставим сразу: анимируется только въезд сбоку.
             Left = work.Right;
+            Top = _expandedTop;
             Show();
             Activate();
 

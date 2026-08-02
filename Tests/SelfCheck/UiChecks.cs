@@ -228,6 +228,12 @@ public static class UiChecks
                        work.Width > 100 && work.Height > 100);
 
             double leftBefore = w.Left;
+            double topBefore = w.Top;
+
+            // Язычок ещё не двигали — он обязан встать вровень с окном по высоте.
+            var freshProfile = MachineProfile.Current;
+            freshProfile.SideDrawerTop = null;
+
             collapseTab.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             Pump(w, TimeSpan.FromMilliseconds(500));
 
@@ -243,14 +249,38 @@ public static class UiChecks
             {
                 check.True($"язычок прижат к правому краю (x={tab.Left:0}, край={work.Right:0})",
                            Math.Abs(tab.Left + tab.Width - work.Right) < 2);
+
+                // По высоте — вровень с окном, по его середине. Язычок,
+                // появляющийся в центре экрана, теряется взглядом: человек
+                // смотрел на окно и ищет его там же.
+                double expected = topBefore + (height - tab.Height) / 2;
+                check.True($"язычок встал вровень с окном (y={tab.Top:0}, ожидалось {expected:0})",
+                           Math.Abs(tab.Top - expected) < 2);
+
+                // Перетаскивание: язычок двигается по вертикали и запоминает место.
+                double before = tab.Top;
+                tab.Top = before + 60;
+                tab.RaiseMoved(tab.Top);
+                check.True("перетаскивание запоминается в профиле",
+                           MachineProfile.Current.SideDrawerTop.HasValue &&
+                           Math.Abs(MachineProfile.Current.SideDrawerTop!.Value - (before + 60)) < 2);
+
+                // За край экрана утащить нельзя — оттуда его не вернуть.
+                tab.MoveTo(work.Bottom + 500);
+                check.True($"язычок не уходит за нижний край (y={tab.Top:0}, предел={work.Bottom - tab.Height:0})",
+                           tab.Top + tab.Height <= work.Bottom + 0.5);
+                tab.MoveTo(work.Top - 500);
+                check.True("язычок не уходит за верхний край", tab.Top >= work.Top - 0.5);
             }
 
             w.ExpandFromEdge();
             Pump(w, TimeSpan.FromMilliseconds(500));
 
             check.True("язычок возвращает окно", w.IsVisible);
-            check.True("окно вернулось на прежнее место",
-                       Math.Abs(w.Left - leftBefore) < 2);
+            // Обе координаты, а не только левая: раньше возвращалась одна,
+            // и окно всплывало не там, где его оставили.
+            check.True($"окно вернулось на прежнее место (x={w.Left:0}/{leftBefore:0}, y={w.Top:0}/{topBefore:0})",
+                       Math.Abs(w.Left - leftBefore) < 2 && Math.Abs(w.Top - topBefore) < 2);
             SameSize(check, w, "возврат из свёрнутого", width, height);
         }
 

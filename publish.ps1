@@ -1,11 +1,18 @@
-﻿# Публикация новой версии на сетевую раздачу.
+﻿# Выпуск новой версии CupsForge.
 #
-#   .\publish.ps1                       — собрать и выложить на Y:\Soft\CupsForge\release
-#   .\publish.ps1 -Destination D:\test  — то же в другую папку (проверить, не трогая рабочую)
+#   .\publish.ps1                        — собрать и выложить на Y:\Soft\CupsForge\release
 #   .\publish.ps1 -Notes "добавлены крышки"
+#   .\publish.ps1 -Destination D:\test   — то же в другую папку (проверить, не трогая рабочую)
+#   .\publish.ps1 -Destination D:\test -SkipDist
+#       — собрать «как для дизайнеров», никуда не отправляя. Это то, что нужно
+#         на домашней машине: сетевого диска нет, ключа GitHub нет, а посмотреть
+#         на готовый Setup.exe надо.
 #
-# Прав администратора не требуется: пишем только в сетевую папку,
-# а у дизайнеров программа живёт в их собственном профиле.
+#   Чтобы просто ЗАПУСТИТЬ и посмотреть окно, выпуск не нужен вовсе:
+#       dotnet run --project CupsForge
+#
+# Прав администратора не требуется ни здесь, ни у дизайнеров: программа живёт
+# в профиле пользователя.
 
 param(
     [string] $Destination = 'Y:\Soft\CupsForge\release',
@@ -16,165 +23,146 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 
-# --- Версия берётся из проекта, дублировать её здесь нельзя ---
+# ─────────────────────────────────────────────────────────────────────────────
+# Версия
+# ─────────────────────────────────────────────────────────────────────────────
+# Старшая часть берётся из проекта (её меняют осознанно, когда меняется
+# сама программа), младшая — число коммитов. Забыть поднять версию невозможно:
+# любой коммит её двигает, и она всегда больше предыдущей.
+#
+# Не теги: тегов в репозитории нет, а схема, требующая ручного действия перед
+# каждым выпуском, ровно тем и плоха, от чего мы уходим.
+
 [xml] $proj = Get-Content (Join-Path $root 'CupsForge\CupsForge.csproj')
-$version = ($proj.Project.PropertyGroup.Version | Where-Object { $_ }) -as [string]
-if (-not $version) { throw 'В CupsForge.csproj не задан <Version>.' }
-Write-Host "Версия: $version"
+$declared = ($proj.Project.PropertyGroup.Version | Where-Object { $_ }) -as [string]
+if (-not $declared) { throw 'В CupsForge.csproj не задан <Version>.' }
 
-# --- Самопроверка: не выкладываем то, что не проходит собственные тесты ---
+$parts = $declared.Split('.')
+$commits = (git -C $root rev-list --count HEAD).Trim()
+if (-not $commits) { throw 'Не удалось спросить у git число коммитов.' }
+
+$version = "$($parts[0]).$($parts[1]).$commits"
+Write-Host "Версия: $version  (из <Version>$declared> и $commits коммитов)"
+
+# Примечание к выпуску: что увидят дизайнеры в полоске обновления.
+# Не указали — берём заголовок последнего коммита: он почти всегда и есть
+# ответ на вопрос «что изменилось».
+if (-not $Notes) {
+    $Notes = (git -C $root log -1 --pretty=%s).Trim()
+    Write-Host "Примечание из последнего коммита: $Notes"
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Самопроверка — не выкладываем то, что не проходит собственные тесты
+# ─────────────────────────────────────────────────────────────────────────────
+Write-Host ''
 Write-Host 'Самопроверка…'
-dotnet run --project (Join-Path $root 'Tests\SelfCheck') --nologo
-if ($LASTEXITCODE -ne 0) { throw 'Самопроверка не прошла — публикация отменена.' }
+dotnet run --project (Join-Path $root 'Tests\SelfCheck') -c Release --nologo
+if ($LASTEXITCODE -ne 0) { throw 'Самопроверка не прошла — выпуск отменён.' }
 
-# --- Сборка ---
-$staging = Join-Path $env:TEMP "cupsforge_publish_$version"
+# ─────────────────────────────────────────────────────────────────────────────
+# Сборка
+# ─────────────────────────────────────────────────────────────────────────────
+# Публикуем ПАПКОЙ, а не одним файлом: дельта-обновления считаются по файлам.
+# Единый сжатый blob менялся бы целиком, и «сдвинуть кнопку» стоило бы
+# дизайнеру восьмидесяти мегабайт вместо сотни килобайт.
+
+$staging = Join-Path $env:TEMP "cupsforge_build_$version"
 if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
 
+Write-Host ''
 Write-Host 'Сборка…'
-dotnet publish (Join-Path $root 'CupsForge\CupsForge.csproj') -c Release -o $staging --nologo
+dotnet publish (Join-Path $root 'CupsForge\CupsForge.csproj') -c Release -o $staging `
+    -p:Version=$version --nologo
 if ($LASTEXITCODE -ne 0) { throw 'Сборка не удалась.' }
 
-# --- Выкладка на сетевой диск ---
-# Это офисный канал, и он есть не всегда: из дома Y: не виден вообще. Раньше
-# скрипт на этом падал — собрал, прогнал самопроверку и умер на копировании,
-# то есть выложить что-либо из дома было нельзя в принципе. А раздача, которая
-# и достаёт до всех, работает откуда угодно. Поэтому недоступный диск —
-# это предупреждение, а не остановка.
-$networkDone = $false
-$exe = Join-Path $staging 'CupsForge.exe'
+# ─────────────────────────────────────────────────────────────────────────────
+# Куда кладём
+# ─────────────────────────────────────────────────────────────────────────────
+# Проверка «есть ли куда» относится ТОЛЬКО к сетевому диску по умолчанию:
+# из дома Y: не виден, и это не повод останавливаться. Названную явно папку
+# создаём — раз назвали, значит туда и хотят.
 
-# Проверка «есть ли куда класть» относится ТОЛЬКО к сетевому диску по умолчанию.
-# Если папку назвали явно, значит её и хотят — создаём. Раньше условие было
-# общим, и `publish.ps1 -Destination D:\куда-нибудь` молча не делал ничего:
-# скрипт собирал, прогонял самопроверку и заканчивался словами «выложено»
-# ни во что.
-$isDefaultDestination = $Destination -eq 'Y:\Soft\CupsForge\release'
-$destinationReady = if ($isDefaultDestination) {
+$isDefault = $Destination -eq 'Y:\Soft\CupsForge\release'
+$networkReady = if ($isDefault) {
     Test-Path (Split-Path -Parent $Destination)
 } else {
     New-Item -ItemType Directory -Force -Path $Destination | Out-Null
     $true
 }
 
-if ($destinationReady) {
-    $target = Join-Path $Destination $version
-    New-Item -ItemType Directory -Force -Path $target | Out-Null
-    Copy-Item $exe $target -Force
-    Write-Host "Выложено: $target"
+# Папка выпусков — она же канал обновления: Velopack читает её напрямую.
+# Складываем СРАЗУ туда, где лежат прошлые выпуски: без них дельту не с чем
+# считать, и каждое обновление снова весило бы как полная программа.
+$releases = if ($networkReady) { $Destination } else { Join-Path $root 'release-local' }
 
-    # Установщик — рядом с раздачей, чтобы дизайнер запускал его прямо с диска.
-    Copy-Item (Join-Path $root 'install.cmd') $Destination -Force
-    Copy-Item (Join-Path $root 'install.ps1') $Destination -Force
-    Write-Host "Установщик обновлён: $Destination\install.cmd"
-
-    # appsettings.json к версии НЕ прикладывается. Раньше это был мост, пока
-    # в настройках не было полей для ключа Bitrix. Поля есть, а раздача теперь
-    # публичная — и ключ уехал бы вместе с ней. Каждый вводит его у себя:
-    # шестерёнка → ДОСТУП К BITRIX.
-    $stray = Join-Path $target 'appsettings.json'
-    if (Test-Path $stray) {
-        Remove-Item $stray -Force
-        Write-Host 'Убран appsettings.json, оставшийся от прошлой публикации.' -ForegroundColor Yellow
-    }
-
-    # Указатель на свежую версию — по нему установщик понимает, что ставить.
-    $latest = [ordered] @{ version = $version; folder = $version; notes = $Notes }
-    $latestPath = Join-Path $Destination 'latest.json'
-    # Out-File -Encoding utf8 в Windows PowerShell дописывает BOM. Программа его
-    # переваривает, но JSON с BOM — источник сюрпризов, пишем без него.
-    [System.IO.File]::WriteAllText($latestPath, ($latest | ConvertTo-Json),
-                                   (New-Object System.Text.UTF8Encoding $false))
-    Write-Host "Обновлён указатель: $latestPath"
-    $networkDone = $true
-} else {
+if (-not $networkReady) {
     Write-Host ''
     Write-Host "Сетевой диск недоступен: $Destination" -ForegroundColor Yellow
-    Write-Host 'Пропускаю — выкладываю только в раздачу. До удалённых дизайнеров'
-    Write-Host 'версия доедет, до офисных (они обновляются с диска) — нет.'
-    Write-Host 'Чтобы доехала и до них, запустите это же из офиса.'
+    Write-Host "Собираю в локальную папку: $releases"
 }
+New-Item -ItemType Directory -Force -Path $releases | Out-Null
 
-# --- Заливка в публичную раздачу ---
-# Без неё новая версия доедет только до офиса. Раздача — единственный канал,
-# который достаёт до домашних машин.
-. (Join-Path $root 'dist-common.ps1')
-$ProgressPreference = 'SilentlyContinue'
-
-$repo = 'Cups-bot/CupsForge-public'
-$tag  = 'dist'
-if ($SkipDist) {
-    Write-Host ''
-    Write-Host 'В раздачу не заливаю (-SkipDist) — только на сетевой диск.' -ForegroundColor Yellow
-    Write-Host 'Удалённые дизайнеры эту версию не увидят.'
-} else {
-    $token = Get-DistToken -Repo $repo
-    $headers = New-DistHeaders $token
-    Assert-DistBootstrapped -Repo $repo -Headers $headers
-
-    Write-Host ''
-    Write-Host 'Заливаю программу в раздачу…'
-    try {
-        $release = Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/$repo/releases/tags/$tag"
-    } catch {
-        $release = Invoke-RestMethod -Headers $headers -Method Post `
-            -Uri "https://api.github.com/repos/$repo/releases" `
-            -Body (@{ tag_name = $tag; name = 'Раздача файлов' } | ConvertTo-Json)
-    }
-
-    # Берём файл из сборочной папки, а не с сетевого диска: диска может не быть.
-    $sha = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
-    $assetName = "app-$version.exe"
-
-    # Одноимённое вложение заменяем: перезалить поверх нельзя.
-    foreach ($a in $release.assets) {
-        if ($a.name -eq $assetName) {
-            Invoke-RestMethod -Headers $headers -Method Delete `
-                -Uri "https://api.github.com/repos/$repo/releases/assets/$($a.id)" | Out-Null
-        }
-    }
-
-    $uploadHeaders = $headers.Clone()
-    $uploadHeaders['Content-Type'] = 'application/octet-stream'
-    $uploadUrl = ($release.upload_url -replace '\{.*$', '') + "?name=$assetName"
-    Invoke-RestMethod -Headers $uploadHeaders -Method Post -Uri $uploadUrl -InFile $exe | Out-Null
-
-    # Опись: дописываем ТОЛЬКО раздел app. Шаблоны и каталог ведёт push-templates,
-    # возможно с другой машины, — берём их из раздачи и кладём обратно как есть.
-    $current = Get-DistManifest -Repo $repo -Headers $headers
-    $doc = if ($current.doc) { $current.doc } else {
-        [pscustomobject]@{ generated = ''; app = $null; catalog = $null; templates = @() }
-    }
-
-    $doc | Add-Member -NotePropertyName generated -NotePropertyValue (Get-Date).ToString('s') -Force
-    $doc | Add-Member -NotePropertyName app -NotePropertyValue ([ordered]@{
-        version = $version; notes = $Notes; asset = $assetName
-        size = (Get-Item $exe).Length; sha256 = $sha
-    }) -Force
-
-    if (-not $doc.templates -or @($doc.templates).Count -eq 0) {
-        Write-Host 'В раздаче нет шаблонов — программа доедет, а шаблоны нет.' -ForegroundColor Yellow
-        Write-Host 'Запустите push-templates.cmd.'
-    }
-
-    Publish-DistManifest -Repo $repo -Headers $headers -Document $doc -Sha $current.sha `
-                         -Message "Программа $version"
-    Write-Host "Программа в раздаче: $assetName"
-    Write-Host "Опись обновлена в $repo"
-}
+# ─────────────────────────────────────────────────────────────────────────────
+# Упаковка
+# ─────────────────────────────────────────────────────────────────────────────
+$notesFile = Join-Path $env:TEMP "cupsforge_notes_$version.md"
+[System.IO.File]::WriteAllText($notesFile, $Notes, (New-Object System.Text.UTF8Encoding $false))
 
 Write-Host ''
-if ($networkDone -or -not $SkipDist) {
-    Remove-Item $staging -Recurse -Force
-    Write-Host 'Готово. У дизайнеров при следующем запуске появится полоска «Доступна версия».'
+Write-Host 'Упаковка…'
+dotnet vpk pack `
+    --packId CupsForge `
+    --packVersion $version `
+    --packDir $staging `
+    --mainExe CupsForge.exe `
+    --packTitle 'CupsForge' `
+    --packAuthors 'Cups' `
+    --icon (Join-Path $root 'Images\Icon\logo.ico') `
+    --releaseNotes $notesFile `
+    --outputDir $releases
+if ($LASTEXITCODE -ne 0) { throw 'Упаковка не удалась.' }
+
+Remove-Item $notesFile -Force -ErrorAction SilentlyContinue
+Remove-Item $staging -Recurse -Force
+
+$setup = Join-Path $releases 'CupsForge-win-Setup.exe'
+$delta = Get-ChildItem $releases -Filter "CupsForge-$version-delta.nupkg" -ErrorAction SilentlyContinue
+
+Write-Host ''
+Write-Host "Готово: $releases" -ForegroundColor Green
+Write-Host "  установщик : $setup"
+if ($delta) {
+    $kb = [int]($delta.Length / 1KB)
+    Write-Host "  дельта     : $kb КБ — столько скачают те, у кого стоит прошлая версия"
 } else {
-    # Никуда не доехало — собранный файл НЕ удаляем и говорим, где он лежит.
-    # Раньше скрипт стирал сборку и в этом случае: человек ждал несколько минут
-    # и не получал ни выкладки, ни файла, который можно запустить руками.
-    Write-Host 'Никуда не выложено: сетевого диска нет, в раздачу заливать запретили (-SkipDist).' -ForegroundColor Yellow
-    Write-Host ''
-    Write-Host 'Собранная программа осталась здесь:' -ForegroundColor Cyan
-    Write-Host "  $exe"
-    Write-Host 'Её можно запустить как есть — .NET на машине не нужен, всё внутри файла.'
+    Write-Host '  дельта     : нет (первый выпуск либо прошлых версий рядом не оказалось)'
 }
-Write-Host 'Каталог продуктов обновляется отдельно — правкой catalog.json в папке шаблонов.'
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Публичная раздача — единственный канал, достающий до домашних машин
+# ─────────────────────────────────────────────────────────────────────────────
+if ($SkipDist) {
+    Write-Host ''
+    Write-Host 'В раздачу не заливаю (-SkipDist). Удалённые дизайнеры версию не увидят.' -ForegroundColor Yellow
+    exit 0
+}
+
+. (Join-Path $root 'dist-common.ps1')
+$repo = 'Cups-bot/CupsForge-public'
+$token = Get-DistToken -Repo $repo
+
+Write-Host ''
+Write-Host 'Заливаю в раздачу…'
+dotnet vpk upload github `
+    --repoUrl "https://github.com/$repo" `
+    --token $token `
+    --outputDir $releases `
+    --releaseName "CupsForge $version" `
+    --tag "v$version" `
+    --merge
+if ($LASTEXITCODE -ne 0) { throw 'Заливка в раздачу не удалась.' }
+
+Write-Host ''
+Write-Host 'Готово. У дизайнеров при следующем запуске появится полоска «Доступна версия».'
+Write-Host 'Каталог продуктов и шаблоны обновляются отдельно — push-templates.cmd.'

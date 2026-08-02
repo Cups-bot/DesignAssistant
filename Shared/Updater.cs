@@ -147,6 +147,36 @@ namespace CupsCore
                    "полностью и попробуйте обновиться ещё раз.";
         }
 
+        /// <summary>
+        /// Можно ли вообще применить обновление на этом запуске.
+        ///
+        /// Спрашивать нужно ДО того, как предлагать кнопку «Обновить»: раньше
+        /// полоска появлялась всегда, а отказ человек получал уже по нажатию.
+        /// Обещать действие, которое заведомо не выполнится, — худший вид
+        /// молчаливого отказа: выглядит как поломка программы.
+        /// </summary>
+        public static bool CanApplyHere(out string? problem, string? exePath = null)
+        {
+            string? current = exePath ?? Environment.ProcessPath;
+
+            if (string.IsNullOrEmpty(current))
+            {
+                problem = "Не удалось определить путь к запущенной программе — обновление недоступно.";
+                return false;
+            }
+
+            if (!IsInsideInstallFolder(current))
+            {
+                problem = "Обновиться отсюда нельзя: программа запущена не из своей папки " +
+                          $"({current}). Так обновление переписало бы файл на раздаче, общий " +
+                          "для всех. Запустите программу ярлыком с рабочего стола.";
+                return false;
+            }
+
+            problem = null;
+            return true;
+        }
+
         /// <summary>Лежит ли запущенный файл внутри папки установки.</summary>
         public static bool IsInsideInstallFolder(string exePath)
         {
@@ -197,24 +227,16 @@ namespace CupsCore
             error = "";
             try
             {
-                string? current = Environment.ProcessPath;
-                if (string.IsNullOrEmpty(current))
+                // Обновлять имеет смысл только свою локальную копию: запуск прямо
+                // с сетевого диска подменил бы раздачу, общую для всех. Условие
+                // одно и то же и здесь, и при показе кнопки — CanApplyHere.
+                if (!CanApplyHere(out string? cannot))
                 {
-                    error = "Не удалось определить путь к запущенной программе.";
+                    error = cannot ?? "Обновление недоступно.";
                     return false;
                 }
 
-                // Обновлять имеет смысл только свою локальную копию. Если программу
-                // запустили прямо с сетевого диска, подмена файла испортила бы раздачу
-                // для всех остальных — и, скорее всего, просто не удалась бы.
-                if (!IsInsideInstallFolder(current))
-                {
-                    error = "Программа запущена не из своей папки, обновление отменено.\n" +
-                            $"Запущено: {current}\n" +
-                            $"Ожидалось внутри: {InstallFolder}\n" +
-                            "Скопируйте программу в эту папку и запускайте оттуда.";
-                    return false;
-                }
+                string current = Environment.ProcessPath!;
 
                 string staging = StagingFolder;
                 Directory.CreateDirectory(staging);

@@ -19,9 +19,26 @@ namespace CupsForge
         private SyncState _syncState = SyncState.Load();
         private bool _syncing;
 
+        /// <summary>
+        /// Окно закрыли. Дальше трогать его элементы нельзя: раздача отвечает
+        /// по сети, ответ может прийти через несколько секунд после закрытия,
+        /// и запись в UpdateText упала бы необработанным исключением — уже
+        /// без окна, в котором её можно было бы показать.
+        /// </summary>
+        private bool _closed;
+
+        protected override void OnClosed(EventArgs e)
+        {
+            _closed = true;
+            base.OnClosed(e);
+        }
+
         private async void CheckDistribution()
         {
             _manifest = await DistributionClient.FetchAsync();
+            if (_closed)
+                return;
+
             if (_manifest == null)
                 return; // нет сети или раздачи — молча работаем на своём
 
@@ -30,9 +47,8 @@ namespace CupsForge
             if (newApp != null && _update == null)
             {
                 _distApp = newApp;
-                UpdateText.Text = $"Доступна версия {newApp.Version}" +
-                                  (string.IsNullOrWhiteSpace(newApp.Notes) ? "" : $" · {newApp.Notes}");
-                UpdateBar.Visibility = Visibility.Visible;
+                OfferUpdate($"Доступна версия {newApp.Version}" +
+                            (string.IsNullOrWhiteSpace(newApp.Notes) ? "" : $" · {newApp.Notes}"));
             }
 
             _plan = DistributionClient.Compare(_manifest, _syncState);
@@ -70,7 +86,13 @@ namespace CupsForge
             SyncButton.IsEnabled = false;
             SyncBar.Visibility = Visibility.Visible;
 
-            var progress = new Progress<string>(name => SyncText.Text = "Скачиваю " + name);
+            // Progress отдаёт в поток окна, но приходит и после закрытия — сотни
+            // файлов качаются долго, и последние доклады запросто переживут окно.
+            var progress = new Progress<string>(name =>
+            {
+                if (!_closed)
+                    SyncText.Text = "Скачиваю " + name;
+            });
 
             try
             {
@@ -78,6 +100,11 @@ namespace CupsForge
 
                 _syncState.FirstSyncDone = true;
                 _syncState.Save();
+
+                // Скачивание идёт минутами: окно вполне могли закрыть. Состояние
+                // на диск записали — оно не пропадёт, а трогать элементы уже нельзя.
+                if (_closed)
+                    return;
 
                 if (error != null)
                 {
@@ -108,6 +135,9 @@ namespace CupsForge
             }
             catch (Exception ex)
             {
+                if (_closed)
+                    return;
+
                 SyncText.Text = "Обновление не удалось";
                 SyncButton.Content = "Повторить";
                 SyncButton.IsEnabled = true;

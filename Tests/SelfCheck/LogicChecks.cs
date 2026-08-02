@@ -621,6 +621,17 @@ public static class LogicChecks
         check.True("запуск с сетевого диска не считается установкой",
             !Updater.IsInsideInstallFolder(@"Y:\Soft\CupsForge\release\3.0.0\CupsForge.exe"));
 
+        // ...и решает это ДО того, как предложить кнопку. Раньше полоска
+        // «Обновить» появлялась всегда, а отказ прилетал уже по нажатию:
+        // обещание, которое заведомо не выполнится, выглядит как поломка.
+        check.True("с раздачи обновляться нельзя, и это известно заранее",
+            !Updater.CanApplyHere(out string? cannot, @"Y:\Soft\CupsForge\release\3.0.0\CupsForge.exe"));
+        check.True("отказ обновления объяснён", !string.IsNullOrWhiteSpace(cannot));
+        check.True("отказ обновления подсказывает выход",
+            (cannot ?? "").Contains("ярлык", StringComparison.OrdinalIgnoreCase));
+        check.True("из своей папки обновляться можно",
+            Updater.CanApplyHere(out _, Path.Combine(Updater.InstallFolder, "CupsForge.exe")));
+
         Directory.Delete(sandbox, true);
         MachineProfile.Set(MachineProfile.CreateOfficeDefault());
     }

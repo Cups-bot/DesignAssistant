@@ -329,8 +329,31 @@ namespace CupsForge
             if (_update == null)
                 return;
 
-            UpdateText.Text = $"Доступна версия {_update.Version}" +
-                              (string.IsNullOrWhiteSpace(_update.Notes) ? "" : $" · {_update.Notes}");
+            OfferUpdate($"Доступна версия {_update.Version}" +
+                        (string.IsNullOrWhiteSpace(_update.Notes) ? "" : $" · {_update.Notes}"));
+        }
+
+        /// <summary>
+        /// Показывает полоску обновления — но кнопку предлагает только если
+        /// обновиться действительно можно. Раньше кнопка была всегда, и при
+        /// запуске не из своей папки человек получал отказ уже по нажатию:
+        /// со стороны это выглядит как сломанная программа, а не как правило.
+        /// </summary>
+        private void OfferUpdate(string headline)
+        {
+            if (Updater.CanApplyHere(out string? cannot))
+            {
+                UpdateText.Text = headline;
+                UpdateButton.Visibility = Visibility.Visible;
+                UpdateButton.IsEnabled = true;
+            }
+            else
+            {
+                UpdateText.Text = headline + " — обновиться отсюда нельзя";
+                UpdateButton.Visibility = Visibility.Collapsed;
+                Log(cannot!);
+            }
+
             UpdateBar.Visibility = Visibility.Visible;
         }
 

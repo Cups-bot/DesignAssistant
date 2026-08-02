@@ -43,9 +43,21 @@ if ($LASTEXITCODE -ne 0) { throw 'Сборка не удалась.' }
 # это предупреждение, а не остановка.
 $networkDone = $false
 $exe = Join-Path $staging 'CupsForge.exe'
-$root_ = Split-Path -Parent $Destination
 
-if (Test-Path $root_) {
+# Проверка «есть ли куда класть» относится ТОЛЬКО к сетевому диску по умолчанию.
+# Если папку назвали явно, значит её и хотят — создаём. Раньше условие было
+# общим, и `publish.ps1 -Destination D:\куда-нибудь` молча не делал ничего:
+# скрипт собирал, прогонял самопроверку и заканчивался словами «выложено»
+# ни во что.
+$isDefaultDestination = $Destination -eq 'Y:\Soft\CupsForge\release'
+$destinationReady = if ($isDefaultDestination) {
+    Test-Path (Split-Path -Parent $Destination)
+} else {
+    New-Item -ItemType Directory -Force -Path $Destination | Out-Null
+    $true
+}
+
+if ($destinationReady) {
     $target = Join-Path $Destination $version
     New-Item -ItemType Directory -Force -Path $target | Out-Null
     Copy-Item $exe $target -Force
@@ -151,12 +163,18 @@ if ($SkipDist) {
     Write-Host "Опись обновлена в $repo"
 }
 
-Remove-Item $staging -Recurse -Force
-
 Write-Host ''
 if ($networkDone -or -not $SkipDist) {
+    Remove-Item $staging -Recurse -Force
     Write-Host 'Готово. У дизайнеров при следующем запуске появится полоска «Доступна версия».'
 } else {
+    # Никуда не доехало — собранный файл НЕ удаляем и говорим, где он лежит.
+    # Раньше скрипт стирал сборку и в этом случае: человек ждал несколько минут
+    # и не получал ни выкладки, ни файла, который можно запустить руками.
     Write-Host 'Никуда не выложено: сетевого диска нет, в раздачу заливать запретили (-SkipDist).' -ForegroundColor Yellow
+    Write-Host ''
+    Write-Host 'Собранная программа осталась здесь:' -ForegroundColor Cyan
+    Write-Host "  $exe"
+    Write-Host 'Её можно запустить как есть — .NET на машине не нужен, всё внутри файла.'
 }
 Write-Host 'Каталог продуктов обновляется отдельно — правкой catalog.json в папке шаблонов.'

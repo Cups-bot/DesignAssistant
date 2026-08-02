@@ -100,6 +100,16 @@ public static class UiChecks
         check.True("окно начинается пустым состоянием",
                    Visible(w, "StateEmpty") && !Visible(w, "StateManual"));
 
+        // Скругление углов снимком не проверить: его режет композитор Windows
+        // уже поверх окна, а RenderTargetBitmap снимает только содержимое.
+        // Зато можно спросить саму Windows, приняла ли она запрос.
+        // На Windows 10 атрибута нет — там ответ «нет», и это не провал.
+        bool rounded = WindowRounding.Apply(w);
+        check.Info(rounded
+            ? "скругление углов: Windows запрос приняла"
+            : "скругление углов: Windows запрос отклонила (ожидаемо до Windows 11)");
+        check.True("запрос на скругление не падает", true);
+
         if (w.FindName("PencilButton") is not Button pencil)
         {
             check.Fail("кнопка карандаша не найдена");

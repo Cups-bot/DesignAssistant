@@ -310,6 +310,8 @@ public static class UiChecks
         }
         finally { MachineProfile.Set(savedProfile); }
 
+        CheckIconStroke(check, w);
+
         FixOneField(check, w, width, height);
 
         // Настройки — панель справа ПОВЕРХ сцены, не второе окно.
@@ -331,6 +333,59 @@ public static class UiChecks
         }
 
         WizardCancelled(check);
+    }
+
+    /// <summary>
+    /// Толщина штриха у всех значков одна и берётся из токена.
+    ///
+    /// Значки нарисованы в поле 24×24 и показываются меньше, поэтому штрих
+    /// приходится задавать в координатах чертежа: чтобы на экране вышло
+    /// полтора пикселя, при размере 12 нужно 3, при 17 — 2.1. Пока эти числа
+    /// стояли в разметке руками, толщина по набору гуляла от 1.37 до 1.7,
+    /// и поменять её разом было нельзя.
+    ///
+    /// Проверка считает ЭКРАННУЮ толщину каждого значка и сверяет с токеном.
+    /// </summary>
+    private static void CheckIconStroke(Checker check, Window w)
+    {
+        double token = w.TryFindResource("Size.Stroke") is double t ? t : -1;
+        check.True($"толщина штриха задана токеном ({token})", token > 0);
+
+        var wrong = new List<string>();
+        int counted = 0;
+
+        foreach (var path in Descendants<System.Windows.Shapes.Path>(w))
+        {
+            // Только значки: у эллипсов-украшений своя толщина и свой смысл.
+            if (path.Data == null || path.Stretch != Stretch.Uniform || path.Width <= 0)
+                continue;
+
+            double onScreen = path.StrokeThickness * path.Width / 24.0;
+            counted++;
+
+            if (Math.Abs(onScreen - token) > 0.05)
+                wrong.Add($"{path.Width:0}px→{onScreen:0.00}");
+        }
+
+        check.True($"значки найдены ({counted} шт.)", counted > 0);
+        check.True(wrong.Count == 0
+                ? $"штрих одинаков у всех значков ({counted} шт., {token} px)"
+                : "штрих одинаков у всех значков — выбиваются: " + string.Join(", ", wrong.Distinct()),
+            wrong.Count == 0);
+    }
+
+    private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject
+    {
+        int count = VisualTreeHelper.GetChildrenCount(root);
+        for (int i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T hit)
+                yield return hit;
+
+            foreach (var deep in Descendants<T>(child))
+                yield return deep;
+        }
     }
 
     /// <summary>

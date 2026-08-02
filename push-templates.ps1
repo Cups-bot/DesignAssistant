@@ -170,7 +170,21 @@ function Update-CatalogVersion {
 }
 
 # Опись нужна ДО подсчёта отпечатков: по ней видно, менялся ли каталог.
-$published = if ($WhatIf) { @{ doc = $null; sha = $null } } else { Get-DistManifest -Repo $Repo -Headers $headers }
+# Читаем её и в примерке — раздача открыта на чтение, ключ не нужен. Иначе
+# примерка всегда сообщала бы «каталог изменился», то есть врала бы.
+#
+# Но в примерке запрос идёт без ключа, а без ключа GitHub считает обращения
+# и на шестьдесят первом за час отвечает отказом. Для примерки это не повод
+# падать: скажем, что сравнить не с чем, и покажем остальное.
+$published = $null
+try {
+    $published = Get-DistManifest -Repo $Repo -Headers $headers
+} catch {
+    if (-not $WhatIf) { throw }
+    Write-Host "Опись сейчас не прочитать: $($_.Exception.Message.Split([char]10)[0])" -ForegroundColor Yellow
+    Write-Host 'Сравнить каталог не с чем — примерка покажет остальное.' -ForegroundColor Yellow
+    $published = @{ doc = $null; sha = $null }
+}
 
 if (-not $NoBump) {
     $null = Update-CatalogVersion -CatalogPath (Join-Path $Templates 'catalog.json') `

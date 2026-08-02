@@ -435,83 +435,68 @@ public static class LogicChecks
     }
 
     /// <summary>
-    /// Обновления. Саму подмену файла не гоняем — она перезапускает программу,
-    /// поэтому проверяем всё, что до неё: сравнение версий, раскрытие пути
-    /// раздачи и поведение, когда раздачи нет.
+    /// Обновления.
+    ///
+    /// Скачивание и подмену файлов делает Velopack — их не гоняем: для этого
+    /// нужна настоящая раздача, а применение перезапускает программу. Проверяем
+    /// всё, что решаем МЫ: какие каналы, в каком порядке, и что программа
+    /// говорит, когда обновляться нельзя.
+    ///
+    /// Часть прежних проверок отсюда ушла вместе с механизмом, который они
+    /// стерегли: сравнение версий, чтение latest.json, разбор следа
+    /// .cmd-скрипта и запрет писать на раздачу. Всё это теперь внутри Velopack.
     /// </summary>
     private static void Updates(Checker check)
     {
         check.Section("Обновления");
 
-        check.True("2.0.0 новее 1.9.9", Updater.IsNewer("2.0.0", "1.9.9"));
-        check.True("3.0.10 новее 3.0.9", Updater.IsNewer("3.0.10", "3.0.9"));
-        check.True("та же версия не новее", !Updater.IsNewer("3.0.0", "3.0.0"));
-        check.True("старая версия не новее", !Updater.IsNewer("2.9.9", "3.0.0"));
-        check.True("мусор не считается новее", !Updater.IsNewer("абра-кадабра", "1.0.0"));
-
         // Раздача лежит рядом с рабочей папкой: Y:\STAKANY\..\Soft → Y:\Soft.
         MachineProfile.Set(MachineProfile.CreateOfficeDefault());
         check.Equal("путь раздачи схлопывает «..»",
             PathResolver.Expand(MachineProfile.Current.UpdateSource),
-            @"Y:\Soft\CupsForge\release");
+            System.IO.Path.Combine(@"Y:\Soft\CupsForge", "release"));
 
-        // Раздачи нет (домашняя машина) — проверка молчит, а не падает.
+        // Каналов два, и порядок не случаен: сетевой диск быстр и работает
+        // без интернета, раздача — единственное, что достаёт до дома.
         string sandbox = Path.Combine(Path.GetTempPath(), "cupsforge_selfcheck_upd");
         if (Directory.Exists(sandbox)) Directory.Delete(sandbox, true);
 
-        var profile = MachineProfile.FromStakanyRoot(Path.Combine(sandbox, "STAKANY"));
-        MachineProfile.Set(profile);
-        check.True("нет раздачи — обновление не найдено и ошибки нет",
-            Updater.Check(out string? d1) == null && d1 == null);
+        var office = MachineProfile.FromStakanyRoot(Path.Combine(sandbox, "STAKANY"));
+        office.UpdateSource = Path.Combine(sandbox, "release");
+        Directory.CreateDirectory(office.UpdateSource);
 
-        // Раздача есть и версия новее — должна найтись.
-        string release = Path.Combine(sandbox, "release");
-        Directory.CreateDirectory(Path.Combine(release, "99.0.0"));
-        File.WriteAllText(Path.Combine(release, "99.0.0", "CupsForge.exe"), "");
-        File.WriteAllText(Path.Combine(release, Updater.ReleaseFileName),
-            """{"version":"99.0.0","folder":"99.0.0","notes":"тест"}""");
+        var both = AppUpdates.DescribeSources(office);
+        check.True($"каналов обновления два ({both.Count})", both.Count == 2);
+        check.True("сетевой диск проверяется первым",
+            both.Count > 0 && both[0].StartsWith("сетевой диск", StringComparison.Ordinal));
+        check.True("раздача проверяется второй",
+            both.Count > 1 && both[1].StartsWith("раздача", StringComparison.Ordinal));
 
-        profile.UpdateSource = release;
-        MachineProfile.Set(profile);
-        ReleaseInfo? found = Updater.Check(out _);
-        check.Equal("новая версия на раздаче найдена", found?.Version, "99.0.0");
-        check.Equal("примечание к версии прочитано", found?.Notes, "тест");
+        // Дома сетевого диска нет — остаётся один канал, и это НЕ ошибка.
+        var home = MachineProfile.FromStakanyRoot(Path.Combine(sandbox, "нет-такой"));
+        home.UpdateSource = Path.Combine(sandbox, "тоже-нет");
+        var homeOnly = AppUpdates.DescribeSources(home);
+        check.True($"без сетевого диска остаётся раздача ({homeOnly.Count})", homeOnly.Count == 1);
+        check.True("и это именно раздача",
+            homeOnly.Count > 0 && homeOnly[0].StartsWith("раздача", StringComparison.Ordinal));
 
-        // Версия не новее текущей — предлагать нечего.
-        File.WriteAllText(Path.Combine(release, Updater.ReleaseFileName),
-            """{"version":"0.0.1","folder":"99.0.0"}""");
-        check.True("старая версия на раздаче игнорируется", Updater.Check(out _) == null);
+        // Отключённая раздача убирает и второй канал: пустая строка означает
+        // «не ходить в интернет вовсе».
+        var offline = home.Clone();
+        offline.UpdateRepo = "";
+        check.True("пустой адрес раздачи выключает канал",
+            AppUpdates.DescribeSources(offline).Count == 0);
 
-        // Заявлена версия, но файла нет — честно сообщаем, а не молчим.
-        File.WriteAllText(Path.Combine(release, Updater.ReleaseFileName),
-            """{"version":"98.0.0","folder":"нет-такой-папки"}""");
-        Updater.Check(out string? d2);
-        check.True("обещанная версия без файла даёт понятную жалобу",
-            d2 != null && d2.Contains("98.0.0"));
+        // Портативный запуск обновлять нельзя, и программа обязана сказать
+        // почему. Прогон идёт именно так — из папки сборки, не из установки.
+        check.True("портативный запуск не считается установкой", !AppUpdates.IsInstalled);
+        string? cannot = AppUpdates.Unavailable();
+        check.True("отказ обновления объяснён", !string.IsNullOrWhiteSpace(cannot));
+        check.True("отказ ведёт к установщику",
+            (cannot ?? "").Contains("Setup.exe", StringComparison.OrdinalIgnoreCase));
 
-        // --- След провалившегося обновления ---
-        // Подмену файла делает скрипт без окна: показать сообщение ему некому,
-        // поэтому итог он пишет в apply.log. Раньше этот файл никто не читал —
-        // обновление молча не применялось, программа запускалась старой, и понять
-        // это можно было только заглянув в служебную папку.
-        string staging = Path.Combine(sandbox, "staging");
-        Directory.CreateDirectory(staging);
-        string applyLog = Path.Combine(staging, "apply.log");
-
-        check.True("без следа обновления жаловаться не на что",
-            Updater.TakeUpdateProblem(staging) == null);
-
-        File.WriteAllText(applyLog, "[01.08.2026 10:00:00] FAILED: target locked, update not applied\r\n");
-        string? problem = Updater.TakeUpdateProblem(staging);
-        check.True("провал обновления замечен", problem != null);
-        check.True("провал обновления назван словами",
-            (problem ?? "").Contains("обнов", StringComparison.OrdinalIgnoreCase));
-        check.True("след убран — второй раз не жалуемся", !File.Exists(applyLog));
-
-        File.WriteAllText(applyLog, "[01.08.2026 10:00:00] OK: updated\r\n");
-        check.True("успешное обновление не выдаётся за провал",
-            Updater.TakeUpdateProblem(staging) == null);
-        check.True("след успеха тоже убран", !File.Exists(applyLog));
+        check.True($"своя версия читается ({AppUpdates.CurrentVersion})",
+            System.Version.TryParse(AppUpdates.CurrentVersion, out _));
 
         Directory.Delete(sandbox, true);
         MachineProfile.Set(MachineProfile.CreateOfficeDefault());
@@ -615,22 +600,9 @@ public static class LogicChecks
         check.True("в отказе есть пропавший путь", (why ?? "").Contains(ghost, StringComparison.Ordinal));
         check.True("отказ ведёт в настройки", (why ?? "").Contains("настройк", StringComparison.OrdinalIgnoreCase));
 
-        // Обновление отказывается трогать копию вне папки установки.
-        check.True("запуск из папки установки распознаётся",
-            Updater.IsInsideInstallFolder(Path.Combine(Updater.InstallFolder, "CupsForge.exe")));
-        check.True("запуск с сетевого диска не считается установкой",
-            !Updater.IsInsideInstallFolder(@"Y:\Soft\CupsForge\release\3.0.0\CupsForge.exe"));
-
-        // ...и решает это ДО того, как предложить кнопку. Раньше полоска
-        // «Обновить» появлялась всегда, а отказ прилетал уже по нажатию:
-        // обещание, которое заведомо не выполнится, выглядит как поломка.
-        check.True("с раздачи обновляться нельзя, и это известно заранее",
-            !Updater.CanApplyHere(out string? cannot, @"Y:\Soft\CupsForge\release\3.0.0\CupsForge.exe"));
-        check.True("отказ обновления объяснён", !string.IsNullOrWhiteSpace(cannot));
-        check.True("отказ обновления подсказывает выход",
-            (cannot ?? "").Contains("ярлык", StringComparison.OrdinalIgnoreCase));
-        check.True("из своей папки обновляться можно",
-            Updater.CanApplyHere(out _, Path.Combine(Updater.InstallFolder, "CupsForge.exe")));
+        // Запрет обновлять копию вне папки установки переехал в AppUpdates
+        // (проверяется в разделе «Обновления»): его держит Velopack, который
+        // сам знает, установлен он или запущен портативно.
 
         Directory.Delete(sandbox, true);
         MachineProfile.Set(MachineProfile.CreateOfficeDefault());

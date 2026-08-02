@@ -135,6 +135,14 @@ namespace CupsCore
         public string DistributionUrl { get; set; } =
             "https://raw.githubusercontent.com/Cups-bot/CupsForge-public/main/manifest.json";
 
+        /// <summary>
+        /// Репозиторий, откуда программа берёт свои обновления. Это второй канал,
+        /// единственный достающий до домашних машин: сетевого диска там нет.
+        /// Пустая строка — не проверять обновления из интернета.
+        /// </summary>
+        [JsonPropertyName("updateRepo")]
+        public string UpdateRepo { get; set; } = "https://github.com/Cups-bot/CupsForge-public";
+
         /// <summary>Где лежат сами файлы раздачи (вложения выпуска).</summary>
         [JsonPropertyName("distributionAssets")]
         public string DistributionAssets { get; set; } =
@@ -269,6 +277,7 @@ namespace CupsCore
                 JsxScript = JsxScript,
                 CatalogPath = CatalogPath,
                 UpdateSource = UpdateSource,
+                UpdateRepo = UpdateRepo,
                 DistributionUrl = DistributionUrl,
                 DistributionAssets = DistributionAssets,
                 AutoSyncTemplates = AutoSyncTemplates,

@@ -35,7 +35,7 @@ namespace CupsForge
             ResultFields.ItemsSource = _fields;
             InitFixSheet();
             LogBox.ItemsSource = _log;
-            FooterHint.Text = "v" + Updater.CurrentVersion;
+            FooterHint.Text = "v" + AppUpdates.CurrentVersion;
 
             // Углы скругляет композитор Windows. Через прозрачность было бы
             // проще, но она отключает ClearType, и весь текст становится мягче.
@@ -698,97 +698,60 @@ namespace CupsForge
 
         // ═══════════ обновление ═══════════
 
-        private ReleaseInfo? _update;
-
-        private void CheckForUpdate()
-        {
-            // Прошлая попытка могла провалиться молча: подменяет файл скрипт без
-            // окна, и сказать об этом на экране он не может.
-            string? previous = Updater.TakeUpdateProblem();
-            if (previous != null)
-            {
-                Log(previous, NoticeKind.Warning);
-                ShowNotice(NoticeIds.UpdateFailed, "Прошлое обновление не применилось", NoticeKind.Warning);
-            }
-
-            try
-            {
-                _update = Updater.Check(out string? diagnosis);
-                if (diagnosis != null)
-                    Log(diagnosis, NoticeKind.Warning);
-            }
-            catch (Exception ex)
-            {
-                Log("Проверка обновлений не удалась: " + ex.Message, NoticeKind.Warning);
-                return;
-            }
-
-            if (_update == null)
-                return;
-
-            OfferUpdate($"Доступна версия {_update.Version}" +
-                        (string.IsNullOrWhiteSpace(_update.Notes) ? "" : $" · {_update.Notes}"));
-        }
+        private AppUpdateInfo? _update;
 
         /// <summary>
-        /// Предлагает обновиться — но только если обновиться действительно можно.
-        /// Раньше кнопка была всегда, и при запуске не из своей папки человек
-        /// получал отказ уже по нажатию: со стороны это выглядит как поломка.
+        /// Тихо смотрит, нет ли версии новее. Каналов два: сетевой диск и
+        /// публичная раздача. Ничего не нашли или каналы недоступны — человек
+        /// об этом не узнаёт, это не повод мешать работать.
         /// </summary>
-        private void OfferUpdate(string headline)
+        private async void CheckForUpdate()
         {
-            if (Updater.CanApplyHere(out string? cannot))
+            string? cannot = AppUpdates.Unavailable();
+            if (cannot != null)
             {
-                ShowNotice(NoticeIds.Update, headline, NoticeKind.Info, "Обновить", ApplyUpdate);
+                // Портативный запуск — не ошибка, а обычное дело при отладке.
+                // Пишем в журнал и не показываем полоску: предлагать кнопку,
+                // которая заведомо не сработает, хуже, чем не предлагать.
+                Log(cannot, NoticeKind.Warning);
                 return;
             }
 
-            ShowNotice(NoticeIds.Update, headline + " — обновиться отсюда нельзя", NoticeKind.Warning);
-            Log(cannot!, NoticeKind.Warning);
+            _update = await AppUpdates.CheckAsync(MachineProfile.Current,
+                                                 message => Log(message, NoticeKind.Warning));
+            if (_closed || _update == null)
+                return;
+
+            ShowNotice(NoticeIds.Update,
+                $"Доступна версия {_update.Version}" +
+                (string.IsNullOrWhiteSpace(_update.Notes) ? "" : $" · {_update.Notes}"),
+                NoticeKind.Info, "Обновить", ApplyUpdate);
+
+            Log($"Доступна версия {_update.Version} ({_update.SourceName}).");
+            if (!string.IsNullOrWhiteSpace(_update.Notes))
+                Log("Что изменилось: " + _update.Notes);
         }
 
         private async void ApplyUpdate()
         {
-            // Из раздачи: качаем по сети и подменяем.
-            if (_update == null && _distApp != null)
-            {
-                var (data, downloadError) = await DistributionClient.DownloadAppAsync(_distApp);
-                if (_closed) return;
-
-                if (data == null)
-                {
-                    Log(downloadError ?? "Не удалось скачать обновление.", NoticeKind.Warning);
-                    RefreshNotice();
-                    return;
-                }
-
-                if (Updater.ApplyFile(data, out string applyError))
-                {
-                    Application.Current.Shutdown();
-                    return;
-                }
-
-                Log(applyError, NoticeKind.Warning);
-                RefreshNotice();
-                return;
-            }
-
             if (_update == null)
             {
                 DropNotice(NoticeIds.Update);
                 return;
             }
 
-            // Заменить работающий файл нельзя, поэтому подмену делает скрипт:
-            // он ждёт закрытия программы и запускает её заново.
-            if (Updater.Apply(_update, out string error))
-            {
-                Application.Current.Shutdown();
-                return;
-            }
+            ShowNotice(NoticeIds.Update, "Скачиваю обновление…", NoticeKind.Info);
 
-            Log(error, NoticeKind.Warning);
-            RefreshNotice();
+            // При успехе программа перезапускается и сюда не возвращается.
+            string? error = await AppUpdates.ApplyAsync(_update,
+                percent => { if (!_closed) ShowNotice(NoticeIds.Update, percent, NoticeKind.Info); });
+
+            if (_closed)
+                return;
+
+            Log(error ?? "Обновление применено.", NoticeKind.Warning);
+            ShowNotice(NoticeIds.Update, $"Доступна версия {_update.Version}",
+                       NoticeKind.Warning, "Повторить", ApplyUpdate);
         }
 
         // ═══════════ журнал ═══════════

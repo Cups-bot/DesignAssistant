@@ -183,7 +183,15 @@ namespace CupsCore
         /// ПЕРЕЗАПУСКАЕТСЯ и управление сюда не возвращается.
         /// Возвращает текст ошибки, если не вышло.
         /// </summary>
-        public static async Task<string?> ApplyAsync(AppUpdateInfo update, Action<string> progress)
+        /// <remarks>
+        /// Доклад о ходе принимается через <see cref="IProgress{T}"/>, а НЕ через
+        /// обычный делегат. Velopack зовёт его из фонового потока, и обычный
+        /// делегат, тронувший окно, роняет обновление: библиотека ловит
+        /// исключение, считает дельту неприменимой и молча уходит на полную
+        /// загрузку — 76 МБ вместо 300 КБ. Поймано живым обновлением.
+        /// IProgress, созданный в потоке окна, возвращает вызов туда сам.
+        /// </remarks>
+        public static async Task<string?> ApplyAsync(AppUpdateInfo update, IProgress<string> progress)
         {
             if (update.Manager == null || update.Raw == null)
                 return "Обновление уже недействительно — проверьте ещё раз.";
@@ -192,7 +200,7 @@ namespace CupsCore
             {
                 await update.Manager.DownloadUpdatesAsync(
                     update.Raw,
-                    percent => progress($"Скачано {percent}%"));
+                    percent => progress.Report($"Скачано {percent}%"));
 
                 update.Manager.ApplyUpdatesAndRestart(update.Raw);
                 return null;

@@ -756,9 +756,18 @@ namespace CupsForge
 
             ShowNotice(NoticeIds.Update, "Скачиваю обновление…", NoticeKind.Info);
 
+            // Progress создаётся ЗДЕСЬ, в потоке окна: тогда доклады из фонового
+            // потока Velopack возвращаются сюда сами. Обычный делегат ронял
+            // обновление — библиотека считала дельту неприменимой и уходила
+            // на полную загрузку.
+            var progress = new Progress<string>(text =>
+            {
+                if (!_closed)
+                    ShowNotice(NoticeIds.Update, text, NoticeKind.Info);
+            });
+
             // При успехе программа перезапускается и сюда не возвращается.
-            string? error = await AppUpdates.ApplyAsync(_update,
-                percent => { if (!_closed) ShowNotice(NoticeIds.Update, percent, NoticeKind.Info); });
+            string? error = await AppUpdates.ApplyAsync(_update, progress);
 
             if (_closed)
                 return;

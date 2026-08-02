@@ -1,9 +1,10 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Windows;
+using CupsCore;
 using System.Windows.Interop;
 
-namespace CupsCore
+namespace CupsForge
 {
     /// <summary>
     /// Скругление углов окна средствами Windows.

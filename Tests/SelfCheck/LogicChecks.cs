@@ -18,6 +18,7 @@ public static class LogicChecks
         MachineProfile.Set(MachineProfile.CreateOfficeDefault());
         CatalogService.Reload();
 
+        Layers(check);
         Catalog(check);
         OutputRoots(check);
         Templates(check);
@@ -35,6 +36,42 @@ public static class LogicChecks
         MachineProfile.Set(MachineProfile.CreateOfficeDefault());
         Paths.ResetIllustratorCache();
         CatalogService.Reload();
+    }
+
+    /// <summary>
+    /// Границы слоёв. Ядро не должно знать про окна.
+    ///
+    /// Это единственный инвариант, который раньше держался только на
+    /// договорённости: код лежал в папке, которую приложение втягивало в свою
+    /// сборку, и ничто не мешало написать в нём using System.Windows. К моменту
+    /// проверки договорённость была нарушена в четырёх файлах, и никто этого
+    /// не замечал.
+    ///
+    /// Теперь ядро — отдельная сборка без WPF, и нарушение не соберётся.
+    /// Проверка сторожит от возврата: кто-нибудь включит UseWPF «на минутку»,
+    /// сборка пройдёт, а граница исчезнет молча.
+    /// </summary>
+    private static void Layers(Checker check)
+    {
+        check.Section("Границы слоёв");
+
+        var core = typeof(MachineProfile).Assembly;
+        check.Equal("ядро — отдельная сборка", core.GetName().Name, "CupsForge.Core");
+
+        var wpf = core.GetReferencedAssemblies()
+            .Where(a => a.Name is "PresentationFramework" or "PresentationCore" or "WindowsBase")
+            .Select(a => a.Name!)
+            .ToList();
+
+        check.True(wpf.Count == 0
+                ? "ядро не ссылается на WPF"
+                : "ядро не ссылается на WPF — а ссылается на: " + string.Join(", ", wpf),
+            wpf.Count == 0);
+
+        // Обратное направление обязано работать: приложение ядро видит.
+        check.True("приложение ссылается на ядро",
+            typeof(CupsForge.AutoWindow).Assembly.GetReferencedAssemblies()
+                .Any(a => a.Name == "CupsForge.Core"));
     }
 
     private static void Catalog(Checker check)

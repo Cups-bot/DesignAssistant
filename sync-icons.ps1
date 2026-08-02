@@ -1,4 +1,4 @@
-﻿# Пересобирает Shared\Theme\Icons.xaml из файлов Icons\*.svg.
+﻿# Пересобирает CupsForge\Theme\Icons.xaml из файлов Icons\*.svg.
 #
 # Зачем скрипт, а не чтение SVG на лету: WPF не умеет SVG. Библиотеку ради
 # двух десятков значков тянуть незачем — она весит больше, чем сами значки,
@@ -21,7 +21,7 @@ $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 
 $iconsDir = Join-Path $root 'Icons'
-$target   = Join-Path $root 'Shared\Theme\Icons.xaml'
+$target   = Join-Path $root 'CupsForge\Theme\Icons.xaml'
 
 if (-not (Test-Path $iconsDir)) { throw "Нет папки со значками: $iconsDir" }
 if (-not (Test-Path $target))   { throw "Нет файла: $target" }

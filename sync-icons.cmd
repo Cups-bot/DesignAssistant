@@ -1,5 +1,5 @@
 @echo off
-rem Wrapper for sync-icons.ps1 -- rebuilds Shared\Theme\Icons.xaml from Icons\*.svg.
+rem Wrapper for sync-icons.ps1 -- rebuilds CupsForge\Theme\Icons.xaml from Icons\*.svg.
 rem
 rem ASCII ONLY: see the note in push-templates.cmd. cmd.exe reads this file
 rem in the console codepage, so Cyrillic here would decode into garbage and

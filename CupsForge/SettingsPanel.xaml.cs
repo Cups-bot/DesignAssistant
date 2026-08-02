@@ -6,10 +6,11 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
+using CupsCore;
 using System.Windows.Controls;
 using System.Windows.Media;
 
-namespace CupsCore
+namespace CupsForge
 {
     /// <summary>
     /// Настройки рабочего места: папки, режим (офис/своя машина), Illustrator,

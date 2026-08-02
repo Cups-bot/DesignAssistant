@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Windows;
+using CupsCore;
 
-namespace CupsCore
+namespace CupsForge
 {
     /// <summary>
     /// Подключение дизайн-токенов и иконок к приложению.
@@ -26,7 +27,7 @@ namespace CupsCore
         /// форма сработала бы, в прогоне — «не удается найти ресурс». Ровно тот
         /// сорт различий, из-за которого «у меня работает».
         /// </summary>
-        private const string Component = "pack://application:,,,/CupsForge;component/Shared/Theme/";
+        private const string Component = "pack://application:,,,/CupsForge;component/Theme/";
 
         public static readonly string[] Dictionaries =
         {

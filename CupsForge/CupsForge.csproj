@@ -31,6 +31,10 @@
     <Compile Include="..\Shared\**\*.cs" Link="Shared\%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- Окно настроек тоже общее: одна разметка на обе программы. -->
     <Page Include="..\Shared\SettingsWindow.xaml" Link="Shared\SettingsWindow.xaml" />
+    <!-- Дизайн-токены и иконки. Пути в Link задают адрес pack://, по которому
+         словари подключаются в App.xaml, — менять его вместе с Source. -->
+    <Page Include="..\Shared\Theme\Tokens.xaml" Link="Shared\Theme\Tokens.xaml" />
+    <Page Include="..\Shared\Theme\Icons.xaml" Link="Shared\Theme\Icons.xaml" />
     <!-- Каталог продуктов: копия внутри программы — последний источник в цепочке. -->
     <EmbeddedResource Include="..\Shared\catalog.json" Link="Shared\catalog.json" />
   </ItemGroup>

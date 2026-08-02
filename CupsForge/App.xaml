@@ -2,6 +2,10 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              StartupUri="AutoWindow.xaml">
+    <!-- Токены и иконки подключает CupsCore.Theme.Apply в App.xaml.cs, а не
+         MergedDictionaries здесь: приложений два — это и то, которое создаёт
+         самопроверка, чтобы открыть настоящее окно. Список словарей должен
+         быть один на оба, иначе прогон открывает окно без токенов. -->
     <Application.Resources>
     </Application.Resources>
 </Application>

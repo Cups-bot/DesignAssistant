@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using System.Windows.Threading;
 using CupsCore;
 using CupsForge;
@@ -40,6 +41,12 @@ public static class UiChecks
         CatalogService.Reload();
 
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+
+        // Прогон создаёт СВОЁ приложение, а токены подключает App.xaml.cs рабочего.
+        // Без этого окно открывалось бы здесь без ресурсов — то есть проверка
+        // разошлась бы с тем, что видит дизайнер.
+        Theme.Apply(app);
+        CheckTokens(check, app);
         app.DispatcherUnhandledException += (_, e) =>
         {
             check.Fail("Необработанное исключение: " + e.Exception.Message);
@@ -140,6 +147,56 @@ public static class UiChecks
                         (w.FindName("SpecChevron") as TextBlock)?.Text,
                         body.Visibility == Visibility.Visible ? "⌃" : "⌄");
         }
+    }
+
+    /// <summary>
+    /// Все токены на месте и разбираются.
+    ///
+    /// В WPF опечатка в имени ресурса и кривая геометрия иконки молчат до
+    /// открытия окна — а окно у дизайнера открывается позже, чем прогон у нас.
+    /// Список ключей в Theme.RequiredKeys и есть договор между токенами и
+    /// разметкой: убрали токен, не поправив окна, — краснеет здесь, а не там.
+    /// </summary>
+    private static void CheckTokens(Checker check, Application app)
+    {
+        var missing = new List<string>();
+        foreach (string key in Theme.RequiredKeys)
+        {
+            if (!app.Resources.Contains(key))
+                missing.Add(key);
+        }
+
+        check.True(missing.Count == 0
+                ? "дизайн-токены на месте"
+                : "дизайн-токены на месте — не найдены: " + string.Join(", ", missing),
+            missing.Count == 0);
+
+        // Геометрия иконок разбирается только при обращении: битая строка пути
+        // до этого момента выглядит как обычный текст.
+        int icons = 0;
+        var broken = new List<string>();
+        foreach (string key in Theme.RequiredKeys)
+        {
+            if (!key.StartsWith("I.", StringComparison.Ordinal))
+                continue;
+
+            try
+            {
+                if (app.Resources[key] is Geometry g && !g.IsEmpty())
+                    icons++;
+                else
+                    broken.Add(key);
+            }
+            catch (Exception ex)
+            {
+                broken.Add($"{key} ({ex.Message})");
+            }
+        }
+
+        check.True(broken.Count == 0
+                ? $"иконки разбираются в геометрию ({icons} шт.)"
+                : "иконки разбираются в геометрию — сломаны: " + string.Join(", ", broken),
+            broken.Count == 0);
     }
 
     /// <summary>

@@ -477,6 +477,79 @@
                 </Grid>
             </Button>
 
+            <!-- ═══════════ ЛИСТ ПРАВКИ ОДНОГО ПОЛЯ ═══════════ -->
+            <!--
+                Разбор ошибся в одном поле из семи. Открывать ради этого ручной
+                ввод целиком значит заставить перезаполнить шесть верных: лист
+                правит ровно то поле, по которому щёлкнули, и возвращает в тот же
+                результат. Список вариантов — ДАННЫЕ из каталога.
+            -->
+            <Grid x:Name="FixOverlay" Grid.RowSpan="4" Visibility="Collapsed" Panel.ZIndex="15">
+                <Rectangle Fill="{StaticResource Scrim}" MouseLeftButtonDown="FixScrim_Click"/>
+                <Border x:Name="FixSheet" VerticalAlignment="Bottom"
+                        Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}"
+                        BorderThickness="0,1,0,0" CornerRadius="14,14,0,0" Padding="14,10,14,14">
+                    <Border.RenderTransform>
+                        <TranslateTransform x:Name="FixShift"/>
+                    </Border.RenderTransform>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0" Margin="0,0,0,10">
+                            <TextBlock x:Name="FixTitle" Style="{StaticResource Value}"
+                                       FontSize="13" VerticalAlignment="Center"/>
+                            <Button Style="{StaticResource IconButton}" Width="22" Height="22"
+                                    HorizontalAlignment="Right" Click="FixClose_Click" ToolTip="Закрыть">
+                                <Path Style="{StaticResource Icon}" Data="{StaticResource I.Close}"
+                                      Width="12" Height="12" Stretch="Uniform" StrokeThickness="3"/>
+                            </Button>
+                        </Grid>
+
+                        <!-- Выбор из списка -->
+                        <Grid Grid.Row="1" x:Name="FixList">
+                            <ScrollViewer MaxHeight="196" VerticalScrollBarVisibility="Auto"
+                                          Padding="0,0,10,0">
+                                <ItemsControl x:Name="FixOptions">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button Style="{StaticResource Outline}" Margin="0,0,0,5"
+                                                    Padding="11,9" HorizontalContentAlignment="Stretch"
+                                                    Tag="{Binding}" Click="FixOption_Click">
+                                                <Grid>
+                                                    <TextBlock Style="{StaticResource Value}"
+                                                               Text="{Binding Label}" HorizontalAlignment="Left"/>
+                                                    <TextBlock Style="{StaticResource Mono}"
+                                                               Text="{Binding Code}" HorizontalAlignment="Right"/>
+                                                </Grid>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                            <Rectangle Height="14" VerticalAlignment="Bottom" IsHitTestVisible="False"
+                                       Margin="0,0,10,0" Fill="{StaticResource FadeToSurface}"/>
+                        </Grid>
+
+                        <!-- Ввод текстом: артикул списком не выбрать -->
+                        <Grid Grid.Row="2" x:Name="FixText" Visibility="Collapsed">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="FixTextBox" Grid.Column="0" Style="{StaticResource Field}"
+                                     Height="36" KeyDown="FixTextBox_KeyDown"/>
+                            <Button Grid.Column="1" Style="{StaticResource PrimaryAction}" Height="36"
+                                    Margin="8,0,0,0" Padding="16,0" Content="Готово"
+                                    Click="FixTextApply_Click"/>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+
             <!-- ═══════════ ПАНЕЛЬ НАСТРОЕК ═══════════ -->
             <!-- Выезжает справа ВНУТРИ окна. Отдельным окном было хуже: второе
                  окно в таскбаре и потеря контекста заказа. Модальность заодно

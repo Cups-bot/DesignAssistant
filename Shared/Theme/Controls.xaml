@@ -202,7 +202,12 @@
                             BorderBrush="{StaticResource Line}"
                             Background="{TemplateBinding Background}"
                             Padding="{TemplateBinding Padding}">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <!-- Выравнивание берётся у кнопки, а не прибито к центру.
+                             Прибитый центр сжимал содержимое по ширине текста, и
+                             в строке «подпись слева · код справа» оба съезжались
+                             в одну точку и печатались друг поверх друга. -->
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">

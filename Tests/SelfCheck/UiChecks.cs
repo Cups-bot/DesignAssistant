@@ -9,6 +9,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CupsCore;
 using CupsForge;
+using CupsForge.Models;
 
 namespace SelfCheck;
 
@@ -175,6 +176,8 @@ public static class UiChecks
             check.True("закрытие ручного ввода возвращает к ссылке", Visible(w, "StateEmpty"));
             SameSize(check, w, "возврат к ссылке", width, height);
         }
+
+        FixOneField(check, w, width, height);
 
         // Настройки — панель справа ПОВЕРХ сцены, не второе окно.
         if (w.FindName("SettingsButton") is Button gear)
@@ -399,6 +402,135 @@ public static class UiChecks
                 ? $"значки совпадают с исходными SVG ({compared} шт.)"
                 : "значки разошлись с SVG — запустите sync-icons.cmd: " + string.Join(", ", stale),
             stale.Count == 0);
+    }
+
+    /// <summary>
+    /// Ошибка чинится на месте, одним полем.
+    ///
+    /// Разбор Bitrix ошибается обычно в одном поле из семи. Раньше клик по строке
+    /// открывал ручной ввод целиком, и дизайнер перезаполнял шесть верных полей
+    /// ради одного неверного. Проверяем весь путь: результат → клик по строке →
+    /// лист → выбор → значение изменилось, окно не выросло.
+    /// </summary>
+    private static void FixOneField(Checker check, AutoWindow w, double width, double height)
+    {
+        // Заказ как из Bitrix, но без похода в сеть.
+        w.ShowResult(new ResolvedDesign
+        {
+            Id = 132583,
+            OrderName = "CarBar (132583 CarBar ST DW90-430)",
+            DesignCode = "132583 CarBar ST DW90-430",
+            Brand = Brand.MyCups,
+            ProductType = ProductTypes.Cups,
+            ProductArticul = "DW90-430",
+            PrintTech = PrintTech.Offset,
+            Material = Material.Uncoated,
+            RawSide = "Белый немелованный"
+        });
+
+        check.True("разобранный заказ показывается результатом", Visible(w, "StateResult"));
+        check.True("«Создать проект» доступно на разобранном заказе",
+                   (w.FindName("BuildButton") as Button)?.IsEnabled == true);
+        Snapshot(w, "5-результат");
+
+        if (w.FindName("ResultFields") is not ItemsControl fields)
+        {
+            check.Fail("список полей результата не найден");
+            return;
+        }
+
+        // Строки — данные: состав собран из заказа, пустые не показываются.
+        check.True($"поля результата собраны из данных ({fields.Items.Count} строк)",
+                   fields.Items.Count >= 5);
+
+        var material = fields.Items.Cast<ResultField>()
+            .FirstOrDefault(f => f.Label == "Материал");
+
+        if (material == null)
+        {
+            check.Fail("строки «Материал» нет в результате");
+            return;
+        }
+
+        check.True("у поправимой строки есть ключ правки", !string.IsNullOrEmpty(material.FixKey));
+
+        // Открываем лист так же, как пользователь: через кнопку строки.
+        var row = FindRowButton(fields, material);
+        if (row == null)
+        {
+            check.Fail("строка «Материал» не нажимается");
+            return;
+        }
+
+        row.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        check.True("клик по строке открывает лист правки", Visible(w, "FixOverlay"));
+        SameSize(check, w, "лист правки", width, height);
+        Snapshot(w, "6-правка-поля");
+
+        check.Equal("лист назван по правимому полю",
+                    (w.FindName("FixTitle") as TextBlock)?.Text, "Выберите материал");
+
+        if (w.FindName("FixOptions") is not ItemsControl options || options.Items.Count == 0)
+        {
+            check.Fail("в листе правки нет вариантов");
+            return;
+        }
+
+        check.Equal("варианты материала",
+                    string.Join(", ", options.Items.Cast<FixOption>().Select(o => o.Label)),
+                    "Немелованный, Мелованный");
+
+        // Выбираем «Мелованный» — значение в результате обязано смениться.
+        var pick = options.ItemContainerGenerator.Items.Cast<FixOption>()
+            .Select((o, i) => (o, i)).First(p => p.o.Label == "Мелованный");
+
+        if (FindOptionButton(options, pick.o) is not Button optionButton)
+        {
+            check.Fail("вариант «Мелованный» не нажимается");
+            return;
+        }
+
+        optionButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        check.True("лист закрывается после выбора", !Visible(w, "FixOverlay"));
+
+        var after = (w.FindName("ResultFields") as ItemsControl)?.Items.Cast<ResultField>()
+            .FirstOrDefault(f => f.Label == "Материал");
+        check.Equal("правка применилась к результату", after?.Value, "Coated");
+
+        // Правка одного поля не должна ронять остальные.
+        check.Equal("остальные поля не потерялись",
+                    (w.FindName("ResultFields") as ItemsControl)?.Items.Cast<ResultField>()
+                        .FirstOrDefault(f => f.Label == "Артикул")?.Value,
+                    "DW90-430");
+    }
+
+    private static Button? FindRowButton(ItemsControl list, ResultField field) =>
+        FindButton(list, field);
+
+    private static Button? FindOptionButton(ItemsControl list, FixOption option) =>
+        FindButton(list, option);
+
+    /// <summary>Кнопка строки по её данным: нажимаем так же, как пользователь.</summary>
+    private static Button? FindButton(ItemsControl list, object item)
+    {
+        list.UpdateLayout();
+        var container = list.ItemContainerGenerator.ContainerFromItem(item) as DependencyObject;
+        return container == null ? null : Descendant<Button>(container);
+    }
+
+    private static T? Descendant<T>(DependencyObject root) where T : DependencyObject
+    {
+        if (root is T hit)
+            return hit;
+
+        int count = VisualTreeHelper.GetChildrenCount(root);
+        for (int i = 0; i < count; i++)
+        {
+            var found = Descendant<T>(VisualTreeHelper.GetChild(root, i));
+            if (found != null)
+                return found;
+        }
+        return null;
     }
 
     /// <summary>

@@ -33,6 +33,7 @@ namespace CupsForge
             SettingsPanel.ConnectionTest = BitrixProbe.TestAsync;
 
             ResultFields.ItemsSource = _fields;
+            InitFixSheet();
             LogBox.ItemsSource = _log;
             FooterHint.Text = "v" + Updater.CurrentVersion;
 
@@ -389,8 +390,6 @@ namespace CupsForge
 
                 // Код дизайна берём из названия заказа (отдельный эндпоинт не нужен).
                 var resolved = BitrixMapper.Map(data, "");
-                _resolved = resolved;
-
                 ShowResult(resolved);
                 Log($"Данные получены: {resolved.Brand} · {resolved.ProductArticul}.");
             }
@@ -417,8 +416,13 @@ namespace CupsForge
         /// не показываются вовсе. Раньше панель всегда рисовала все десять
         /// строк, половина из которых была «—», и глаз тонул в прочерках.
         /// </summary>
-        private void ShowResult(ResolvedDesign r)
+        internal void ShowResult(ResolvedDesign r)
         {
+            // Показанный заказ И ЕСТЬ текущий. Раньше присваивание жило отдельно,
+            // у вызывающей стороны, и метод оказывался согласован только по
+            // договорённости: показать один заказ, а работать с другим было
+            // технически возможно. Лист правки на это и наткнулся.
+            _resolved = r;
             _fields.Clear();
 
             Add("Заказ", r.Id.ToString());
@@ -447,7 +451,9 @@ namespace CupsForge
             {
                 Label = "Артикул",
                 Value = articleMissing ? "не распознан" : r.ProductArticul,
-                Warn = articleMissing
+                Warn = articleMissing,
+                FixKey = FixKeys.Article,
+                Hint = "Щёлкните, чтобы указать артикул"
             });
 
             bool nameMissing = string.IsNullOrWhiteSpace(r.DesignCode);
@@ -471,7 +477,7 @@ namespace CupsForge
                 ResultBadgeIcon.Stroke = Ui.Brush("Warn");
                 ResultBadge.Background = new System.Windows.Media.SolidColorBrush(
                     System.Windows.Media.Color.FromArgb(0x17, 0xFB, 0xBF, 0x24));
-                BuildButtonText.Text = "Поправить вручную";
+                BuildButtonText.Text = "Указать артикул";
             }
 
             foreach (string warning in r.Warnings)
@@ -481,8 +487,15 @@ namespace CupsForge
 
             void Add(string label, string value)
             {
-                if (!string.IsNullOrWhiteSpace(value))
-                    _fields.Add(new ResultField { Label = label, Value = value });
+                if (string.IsNullOrWhiteSpace(value))
+                    return;
+
+                string? fix = FixKeyFor(label, r);
+                _fields.Add(new ResultField
+                {
+                    Label = label, Value = value, FixKey = fix,
+                    Hint = fix == null ? null : "Щёлкните, чтобы поправить"
+                });
             }
 
             static string Mapped(string raw, string result) =>
@@ -490,16 +503,17 @@ namespace CupsForge
         }
 
         /// <summary>
-        /// Клик по строке результата. Пока ведёт в ручной ввод целиком;
-        /// лист на одно поле — следующий шаг, под него уже есть FixKey.
+        /// Клик по строке результата открывает лист правки ЭТОГО поля.
+        /// Раньше вёл в ручной ввод целиком — дизайнер перезаполнял шесть
+        /// верных полей ради одного неверного.
         /// </summary>
         private void ResultField_Click(object sender, RoutedEventArgs e)
         {
-            if (_resolved == null)
+            if (_resolved == null || sender is not System.Windows.Controls.Button { Tag: ResultField field })
                 return;
 
-            FillManualFrom(_resolved);
-            SetStage(Stage.Manual);
+            if (!string.IsNullOrEmpty(field.FixKey))
+                OpenFix(field.FixKey);
         }
 
         // ═══════════ создание проекта ═══════════
@@ -508,12 +522,12 @@ namespace CupsForge
 
         private void BuildButton_Click(object sender, RoutedEventArgs e)
         {
-            // Результат с неразобранным артикулом ведёт не в сборку, а в правку.
+            // Результат с неразобранным артикулом ведёт не в сборку, а в правку —
+            // ровно того поля, которого не хватает.
             if (_stage == Stage.Result && !_canBuildResolved)
             {
                 if (_resolved != null)
-                    FillManualFrom(_resolved);
-                SetStage(Stage.Manual);
+                    OpenFix(FixKeys.Article);
                 return;
             }
 

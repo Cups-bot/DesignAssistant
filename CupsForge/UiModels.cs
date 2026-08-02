@@ -43,6 +43,36 @@ namespace CupsForge
             string.IsNullOrEmpty(FixKey) ? Visibility.Collapsed : Visibility.Visible;
     }
 
+    /// <summary>
+    /// Вариант в листе точечной правки: «Мелованный · coated».
+    ///
+    /// Список вариантов — данные из каталога, а не разметка. Новый материал или
+    /// вкус появляется здесь сам, дорисовывать кнопку не нужно.
+    /// </summary>
+    public sealed class FixOption
+    {
+        /// <summary>Что подставить: идентификатор направления, типа, вкуса.</summary>
+        public string Id { get; init; } = "";
+
+        public string Label { get; init; } = "";
+
+        /// <summary>Техническая подпись справа — то, что уедет в args.txt.</summary>
+        public string Code { get; init; } = "";
+    }
+
+    /// <summary>Что именно правит лист. Строкой: набор задаёт каталог, а не enum.</summary>
+    public static class FixKeys
+    {
+        public const string Brand = "brand";
+        public const string Type = "type";
+        public const string Tech = "tech";
+        public const string Material = "material";
+        public const string Coating = "coating";
+        public const string Variant = "variant";
+        public const string Country = "country";
+        public const string Article = "article";
+    }
+
     /// <summary>Запись журнала. Время и значок вместо сплошной простыни текста.</summary>
     public sealed class LogEntry
     {

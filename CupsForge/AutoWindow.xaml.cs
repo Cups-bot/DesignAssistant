@@ -665,6 +665,17 @@ namespace CupsForge
             {
                 var catalog = CatalogService.Current;
                 CatalogStamp.Text = $"каталог v{catalog.Version} · {catalog.Updated}";
+
+                // Видно, отстал ли каталог: версия из описи раздачи приходит
+                // вместе с ней и сравнивается без скачивания. Само обновление
+                // приедет с шаблонами — здесь только сказать вслух.
+                int available = _manifest?.Catalog?.Version ?? 0;
+                if (available > catalog.Version)
+                {
+                    CatalogStamp.Text += $" · доступна v{available}";
+                    Log($"Каталог устарел: у вас v{catalog.Version}, в раздаче v{available}. " +
+                        "Приедет вместе с шаблонами.", NoticeKind.Warning);
+                }
                 Log($"Каталог: версия {catalog.Version} от {catalog.Updated} — {catalog.SourceName}");
 
                 if (!CatalogService.IsUsingEmbedded)

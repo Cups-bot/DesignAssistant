@@ -25,6 +25,7 @@ param(
     [string] $Tag = 'dist',
     [string] $Manifest = '',
     [switch] $Prune,
+    [switch] $NoBump,
     [switch] $WhatIf
 )
 
@@ -116,6 +117,65 @@ foreach ($a in $broken) {
 # --- Опись того, что должно быть ---
 function Get-Sha256([string] $path) {
     (Get-FileHash -Path $path -Algorithm SHA256).Hash.ToLower()
+}
+
+# --- Версия каталога ---
+# Каталог версионируется САМ, при выкладке.
+#
+# Требовать помнить про «version» перед каждой правкой бессмысленно: правят
+# каталог редко и урывками, а забытая версия хуже отсутствующей — программа
+# показывает «v2» и там, и там, и понять, у кого старый каталог, нельзя.
+#
+# Поднимаем ровно тогда, когда содержимое действительно изменилось: сверяем
+# отпечаток файла с тем, что уже опубликовано. Повторный прогон без правок
+# версию не двигает.
+function Update-CatalogVersion {
+    param([string] $CatalogPath, [object] $PublishedCatalog, [switch] $Pretend)
+
+    if (-not (Test-Path $CatalogPath)) { return $null }
+
+    $sha = Get-Sha256 $CatalogPath
+    if ($PublishedCatalog -and $PublishedCatalog.sha256 -eq $sha) {
+        Write-Host 'Каталог не менялся — версию не трогаю.'
+        return $null
+    }
+
+    # Кодировка явно: Get-Content в PowerShell 5.1 читает UTF-8 без BOM как ANSI,
+    # и кириллица в названиях продуктов развалилась бы прямо в файле.
+    $text = [System.IO.File]::ReadAllText($CatalogPath, [System.Text.Encoding]::UTF8)
+
+    $verMatch = [regex]::Match($text, '"version"\s*:\s*(\d+)')
+    if (-not $verMatch.Success) {
+        Write-Host 'В catalog.json нет поля "version" — пропускаю подпечатку.' -ForegroundColor Yellow
+        return $null
+    }
+
+    $next = [int] $verMatch.Groups[1].Value + 1
+    $today = (Get-Date).ToString('yyyy-MM-dd')
+
+    if ($Pretend) {
+        Write-Host "Каталог изменился: версия стала бы $next от $today (примерка)."
+        return $next
+    }
+
+    # Правим только два поля, остальной файл — включая комментарии и порядок —
+    # остаётся байт в байт. Разбирать и пересобирать JSON значило бы потерять
+    # комментарии, ради которых схема и заведена.
+    $text = [regex]::Replace($text, '"version"\s*:\s*\d+', ('"version": ' + $next), 1)
+    $text = [regex]::Replace($text, '"updated"\s*:\s*"[^"]*"', ('"updated": "' + $today + '"'), 1)
+
+    [System.IO.File]::WriteAllText($CatalogPath, $text, (New-Object System.Text.UTF8Encoding $false))
+    Write-Host "Каталог изменился: версия поднята до $next от $today." -ForegroundColor Green
+    return $next
+}
+
+# Опись нужна ДО подсчёта отпечатков: по ней видно, менялся ли каталог.
+$published = if ($WhatIf) { @{ doc = $null; sha = $null } } else { Get-DistManifest -Repo $Repo -Headers $headers }
+
+if (-not $NoBump) {
+    $null = Update-CatalogVersion -CatalogPath (Join-Path $Templates 'catalog.json') `
+                                  -PublishedCatalog $published.doc.catalog `
+                                  -Pretend:$WhatIf
 }
 
 $files = @()
@@ -236,8 +296,17 @@ $templateFiles = @($files | Where-Object { $_.path -ne 'catalog.json' })
 $manifestDoc = [ordered]@{
     generated = (Get-Date).ToString('s')
     app       = $null
-    catalog   = if ($catalog) { [ordered]@{ path = $catalog.path; asset = $catalog.asset
-                                            size = $catalog.size; sha256 = $catalog.sha256 } } else { $null }
+    catalog   = if ($catalog) {
+        # Версия и дата дублируются в описи НАМЕРЕННО: так программа видит,
+        # отстал ли её каталог, не скачивая его целиком.
+        $meta = [System.IO.File]::ReadAllText((Join-Path $Templates 'catalog.json'), [System.Text.Encoding]::UTF8)
+        $v = [regex]::Match($meta, '"version"\s*:\s*(\d+)')
+        $u = [regex]::Match($meta, '"updated"\s*:\s*"([^"]*)"')
+        [ordered]@{ path = $catalog.path; asset = $catalog.asset
+                    size = $catalog.size; sha256 = $catalog.sha256
+                    version = if ($v.Success) { [int] $v.Groups[1].Value } else { 0 }
+                    updated = if ($u.Success) { $u.Groups[1].Value } else { '' } }
+    } else { $null }
     templates = @($templateFiles | ForEach-Object {
         [ordered]@{ path = $_.path; asset = $_.asset; size = $_.size; sha256 = $_.sha256 }
     })
@@ -255,7 +324,7 @@ if (-not $manifestDoc.catalog) {
 # Сведения о программе берём из той описи, что уже лежит в раздаче: их пишет
 # publish.ps1, возможно с другой машины. Свой раздел мы перезаписываем, чужой —
 # переносим как есть.
-$current = if ($WhatIf) { @{ doc = $null; sha = $null } } else { Get-DistManifest -Repo $Repo -Headers $headers }
+$current = $published
 if ($current.doc -and $current.doc.app) { $manifestDoc.app = $current.doc.app }
 
 $weight = '{0:N0} МБ' -f (($files | Measure-Object size -Sum).Sum / 1MB)

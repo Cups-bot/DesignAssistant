@@ -54,6 +54,14 @@ namespace CupsCore
 
         [JsonPropertyName("size")]   public long Size { get; set; }
         [JsonPropertyName("sha256")] public string Sha256 { get; set; } = "";
+
+        /// <summary>
+        /// Версия и дата — только у каталога. Дублируются в описи намеренно:
+        /// так программа видит, отстал ли её каталог, НЕ скачивая его целиком.
+        /// Для шаблонов остаются нулями и не значат ничего.
+        /// </summary>
+        [JsonPropertyName("version")] public int Version { get; set; }
+        [JsonPropertyName("updated")] public string Updated { get; set; } = "";
     }
 
     /// <summary>

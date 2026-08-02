@@ -1,11 +1,15 @@
 using System.Diagnostics;
+using System.Linq;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CupsCore;
 using CupsForge;
+using CupsForge.Models;
 
 namespace SelfCheck;
 
@@ -29,9 +33,9 @@ public static class UiChecks
         var profile = MachineProfile.FromStakanyRoot(sandbox);
         profile.IllustratorExe = Path.Combine(sandbox, "no-illustrator.exe");
 
-        // Создаём ВСЕ рабочие папки: иначе окно при запуске покажет мастер настройки
-        // модально, и прогон повиснет — закрыть его в тесте некому.
-        // Это же и проверка того, что при полном комплекте папок мастер не лезет.
+        // Создаём ВСЕ рабочие папки: при полном комплекте панель настроек
+        // не открывается сама, и окно начинается с обычного пустого состояния.
+        // Случай «папок нет» проверяется отдельно, в WizardCancelled.
         foreach (string key in MachineProfile.Root.AllIncludingBase)
             Directory.CreateDirectory(profile.Roots[key]);
 
@@ -40,6 +44,12 @@ public static class UiChecks
         CatalogService.Reload();
 
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+
+        // Прогон создаёт СВОЁ приложение, а токены подключает App.xaml.cs рабочего.
+        // Без этого окно открывалось бы здесь без ресурсов — то есть проверка
+        // разошлась бы с тем, что видит дизайнер.
+        Theme.Apply(app);
+        CheckTokens(check, app);
         app.DispatcherUnhandledException += (_, e) =>
         {
             check.Fail("Необработанное исключение: " + e.Exception.Message);
@@ -80,8 +90,25 @@ public static class UiChecks
 
     private static void Inspect(Checker check, AutoWindow w)
     {
-        var manual = w.FindName("ManualPanel") as Border;
-        check.True("ручная панель по умолчанию скрыта", manual?.Visibility != Visibility.Visible);
+        // Габарит окна — константа во всех состояниях. Это главное обещание
+        // редизайна: раньше стояло SizeToContent, окно росло от каждой панели,
+        // и кнопка «Создать проект» ездила на десятки пикселей между заказами.
+        double width = w.ActualWidth;
+        double height = w.ActualHeight;
+        Snapshot(w, "1-пусто");
+
+        check.True("окно начинается пустым состоянием",
+                   Visible(w, "StateEmpty") && !Visible(w, "StateManual"));
+
+        // Скругление углов снимком не проверить: его режет композитор Windows
+        // уже поверх окна, а RenderTargetBitmap снимает только содержимое.
+        // Зато можно спросить саму Windows, приняла ли она запрос.
+        // На Windows 10 атрибута нет — там ответ «нет», и это не провал.
+        bool rounded = WindowRounding.Apply(w);
+        check.Info(rounded
+            ? "скругление углов: Windows запрос приняла"
+            : "скругление углов: Windows запрос отклонила (ожидаемо до Windows 11)");
+        check.True("запрос на скругление не падает", true);
 
         if (w.FindName("PencilButton") is not Button pencil)
         {
@@ -90,7 +117,23 @@ public static class UiChecks
         }
 
         pencil.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-        check.True("карандаш раскрывает ручную панель", manual?.Visibility == Visibility.Visible);
+        check.True("карандаш переводит окно в ручной ввод",
+                   Visible(w, "StateManual") && !Visible(w, "StateEmpty"));
+        SameSize(check, w, "ручной ввод", width, height);
+        Snapshot(w, "2-ручной-ввод");
+
+        // «Создать проект» существует только когда есть что создавать: пустое
+        // имя дизайна — не повод звать сборщик, чтобы тот пожаловался в журнал.
+        check.True("без имени дизайна создавать нечего",
+                   (w.FindName("ManualBuildButton") as Button)?.IsEnabled == false);
+
+        if (w.FindName("ManualNameBox") is TextBox nameBox)
+        {
+            nameBox.Text = "132583 CarBar ST DW90-430";
+            check.True("на настроенном месте ручной ввод разрешает «Создать проект»",
+                       (w.FindName("ManualBuildButton") as Button)?.IsEnabled == true);
+            Snapshot(w, "7-набранный-текст");
+        }
 
         // Списки строятся из каталога, поэтому проверяем именно их содержимое.
         check.Equal("направления из каталога", Items(w, "BrandCombo"),
@@ -123,15 +166,589 @@ public static class UiChecks
             check.True("шоколад → строка «Материал» скрыта", !Visible(w, "MaterialCombo"));
         }
 
-        // Панель проверки данных должна сворачиваться.
-        if (w.FindName("SpecBody") is Grid body && w.FindName("SpecToggle") is Button toggle)
+        // Журнал — шторка ПОВЕРХ сцены. Раньше он разворачивал окно вниз,
+        // и всё, что ниже, уезжало. Проверяем и то, что открылся, и то,
+        // что окно от этого не выросло.
+        if (w.FindName("JournalToggle") is Button journal)
         {
-            var before = body.Visibility;
-            toggle.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-            check.True("«Проверка данных» сворачивается", before != body.Visibility);
-            check.Equal("шеврон меняется",
-                        (w.FindName("SpecChevron") as TextBlock)?.Text,
-                        body.Visibility == Visibility.Visible ? "⌃" : "⌄");
+            journal.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            check.True("журнал открывается шторкой", Visible(w, "JournalOverlay"));
+            Snapshot(w, "3-журнал");
+            SameSize(check, w, "журнал", width, height);
+
+            journal.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            check.True("журнал закрывается", !Visible(w, "JournalOverlay"));
+        }
+
+        // Возврат из ручного ввода — окно по-прежнему того же размера.
+        if (w.FindName("ManualCloseButton") is Button back)
+        {
+            back.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            check.True("закрытие ручного ввода возвращает к ссылке", Visible(w, "StateEmpty"));
+            SameSize(check, w, "возврат к ссылке", width, height);
+        }
+
+        // WindowChrome отдаёт верхние 38 пикселей окна системе под перетаскивание
+        // и глотает там все клики. Всё, что ложится ПОВЕРХ сцены, занимает окно
+        // целиком — значит и эту полосу. Без признака IsHitTestVisibleInChrome
+        // кнопки в верхней части панели просто не нажимаются: крестик настроек
+        // выглядел сломанным, хотя обработчик был на месте.
+        foreach (string overlay in new[] { "SettingsOverlay", "JournalOverlay", "FixOverlay" })
+        {
+            bool clickable = w.FindName(overlay) is IInputElement o &&
+                             System.Windows.Shell.WindowChrome.GetIsHitTestVisibleInChrome(o);
+            check.True($"{overlay}: клики не съедаются полосой заголовка", clickable);
+        }
+
+        // Сворачивание к краю экрана: окно уезжает вправо и прячется целиком,
+        // у края остаётся язычок ПОВЕРХ ВСЕХ ОКОН. Не то же, что сворачивание
+        // в панель задач: там программу надо искать среди двадцати значков,
+        // здесь она всегда на одном месте и в одном щелчке.
+        check.True("сворачивание к краю включено по умолчанию",
+                   new MachineProfile().SideDrawer);
+
+        if (w.FindName("DrawerTabButton") is Button collapseTab)
+        {
+            w.UpdateLayout();
+            var box = collapseTab.TransformToAncestor(w).TransformBounds(
+                new Rect(collapseTab.RenderSize));
+            bool onScreen = collapseTab.Visibility == Visibility.Visible &&
+                            box.Width > 0 && box.Left >= 0 &&
+                            box.Right <= w.ActualWidth + 0.5;
+
+            check.True(onScreen
+                    ? "язычок сворачивания внутри окна"
+                    : $"язычок сворачивания внутри окна — он на {box.Left:0}..{box.Right:0} при ширине {w.ActualWidth:0}",
+                onScreen);
+
+            // Рабочая область берётся у монитора, на котором окно, а не у
+            // главного: со вторым экраном язычок уезжал бы на чужой.
+            Rect work = ScreenEdge.WorkAreaFor(w);
+            check.True($"рабочая область экрана определена ({work.Width:0}x{work.Height:0})",
+                       work.Width > 100 && work.Height > 100);
+
+            double leftBefore = w.Left;
+            double topBefore = w.Top;
+
+            // Где стрелка внутри окна — от неё считается всё остальное.
+            double arrowOffset = collapseTab.TransformToAncestor(w)
+                                     .Transform(new Point(0, 0)).Y
+                                 + collapseTab.ActualHeight / 2;
+
+            collapseTab.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            Pump(w, TimeSpan.FromMilliseconds(500));
+
+            check.True("после сворачивания окно спрятано", !w.IsVisible);
+
+            // Спрятать окно мало: если язычок не появился, программа просто
+            // исчезла с экрана и вернуть её нечем.
+            var tab = Application.Current.Windows.OfType<DockTab>().FirstOrDefault();
+            check.True("язычок появился у края экрана", tab is { IsVisible: true });
+            check.True("язычок поверх всех окон", tab is { Topmost: true });
+            check.True("язычка нет в панели задач", tab is { ShowInTaskbar: false });
+            if (tab != null)
+            {
+                check.True($"язычок прижат к правому краю (x={tab.Left:0}, край={work.Right:0})",
+                           Math.Abs(tab.Left + tab.Width - work.Right) < 2);
+
+                // Язычок — продолжение стрелки внутри окна: их середины должны
+                // совпасть, иначе при сворачивании стрелка «прыгает».
+                double arrowCenter = topBefore + arrowOffset;
+                check.True($"середина язычка совпала со стрелкой окна (y={tab.Top + tab.Height / 2:0}, стрелка={arrowCenter:0})",
+                           Math.Abs(tab.Top + tab.Height / 2 - arrowCenter) < 2);
+
+                // За край экрана утащить нельзя — оттуда его не вернуть.
+                tab.MoveTo(work.Bottom + 500);
+                check.True($"язычок не уходит за нижний край (y={tab.Top:0}, предел={work.Bottom - tab.Height:0})",
+                           tab.Top + tab.Height <= work.Bottom + 0.5);
+                tab.MoveTo(work.Top - 500);
+                check.True("язычок не уходит за верхний край", tab.Top >= work.Top - 0.5);
+            }
+
+            // Двигаем язычок и разворачиваем: окно обязано открыться так, чтобы
+            // его стрелка встала на место язычка. Связь двусторонняя — иначе
+            // перетаскивание язычка ничего не значит.
+            //
+            // Ставим язычок в середину экрана НАМЕРЕННО: у самого края окно
+            // просто не поместится, сработает ограничение, и проверка мерила бы
+            // не совпадение, а упор в край.
+            double moved = 0;
+            if (tab != null)
+            {
+                tab.MoveTo(work.Top + work.Height / 2);
+                moved = tab.Top + tab.Height / 2;
+            }
+
+            w.ExpandFromEdge();
+            Pump(w, TimeSpan.FromMilliseconds(500));
+
+            check.True("язычок возвращает окно", w.IsVisible);
+            check.True($"горизонталь сохранена (x={w.Left:0}, было {leftBefore:0})",
+                       Math.Abs(w.Left - leftBefore) < 2);
+            check.True($"окно встало по язычку (стрелка={w.Top + arrowOffset:0}, язычок={moved:0})",
+                       Math.Abs(w.Top + arrowOffset - moved) < 2);
+            SameSize(check, w, "возврат из свёрнутого", width, height);
+        }
+
+        // Выключенная настройка убирает язычок сворачивания.
+        var savedProfile = MachineProfile.Current;
+        try
+        {
+            var off = savedProfile.Clone();
+            off.SideDrawer = false;
+            MachineProfile.Set(off);
+
+            var other = new AutoWindow();
+            try
+            {
+                other.Show();
+                other.UpdateLayout();
+                check.True("выключённое сворачивание убирает язычок",
+                           (other.FindName("DrawerTabButton") as UIElement)?.Visibility != Visibility.Visible);
+            }
+            finally { other.Close(); }
+        }
+        finally { MachineProfile.Set(savedProfile); }
+
+        FixOneField(check, w, width, height);
+
+        // Настройки — панель справа ПОВЕРХ сцены, не второе окно.
+        if (w.FindName("SettingsButton") is Button gear)
+        {
+            gear.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            check.True("шестерёнка открывает панель настроек", Visible(w, "SettingsOverlay"));
+            Snapshot(w, "4-настройки");
+            SameSize(check, w, "настройки", width, height);
+
+            if (w.FindName("SettingsHost") is ContentControl host &&
+                host.Content is SettingsPanel panel &&
+                panel.FindName("CancelButton") is Button cancel)
+            {
+                cancel.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                check.True("на настроенном месте панель закрывается отменой",
+                           !Visible(w, "SettingsOverlay"));
+            }
+        }
+
+        WizardCancelled(check);
+    }
+
+    /// <summary>
+    /// Даёт окну пожить указанное время, не блокируя его поток: обычный Sleep
+    /// на потоке интерфейса остановил бы и анимации, которых мы ждём.
+    /// </summary>
+    private static void Pump(Window w, TimeSpan time)
+    {
+        var frame = new DispatcherFrame();
+        var timer = new DispatcherTimer(time, DispatcherPriority.Background,
+            (_, _) => frame.Continue = false, w.Dispatcher);
+        timer.Start();
+        Dispatcher.PushFrame(frame);
+        timer.Stop();
+    }
+
+    /// <summary>
+    /// Снимок окна в файл. Зелёная проверка говорит, что элементы на месте,
+    /// но не что окно выглядит правильно: съехавший отступ, невидимый на тёмном
+    /// текст и не прокрасившийся системный контрол проверками не ловятся.
+    ///
+    /// Включается переменной среды CUPSFORGE_SNAPSHOT=папка — по умолчанию
+    /// прогон файлов не пишет.
+    /// </summary>
+    private static void Snapshot(Window w, string name)
+    {
+        string? folder = Environment.GetEnvironmentVariable("CUPSFORGE_SNAPSHOT");
+        if (string.IsNullOrWhiteSpace(folder))
+            return;
+
+        try
+        {
+            Directory.CreateDirectory(folder);
+
+            // Без принудительного пересчёта снимок берёт дерево ДО перестройки:
+            // состояние уже переключено, а на картинке предыдущее (и чаще пустое).
+            // Снимок, который врёт, хуже отсутствующего.
+            //
+            // Пересчёта мало: шторка выезжает анимацией, и снимок ловил её на
+            // полпути — низ оказывался срезан, и это выглядело как ошибка вёрстки.
+            // Крутим очередь сообщений, пока анимации не встанут.
+            w.UpdateLayout();
+            Pump(w, TimeSpan.FromMilliseconds(450));
+            w.UpdateLayout();
+
+            // Масштаб 2x: на снимке видно сглаживание и полупиксельные отступы.
+            var bitmap = new RenderTargetBitmap(
+                (int)(w.ActualWidth * 2), (int)(w.ActualHeight * 2), 192, 192, PixelFormats.Pbgra32);
+            bitmap.Render(w);
+
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(bitmap));
+
+            using var stream = File.Create(Path.Combine(folder, name + ".png"));
+            encoder.Save(stream);
+        }
+        catch
+        {
+            // Снимок — удобство, а не проверка: не вышло, и ладно.
+        }
+    }
+
+    /// <summary>
+    /// Габарит окна не изменился. Вынесено отдельно: это обещание нарушается
+    /// незаметно — достаточно одного SizeToContent или панели, вставленной
+    /// в строку сетки вместо слоя поверх.
+    /// </summary>
+    private static void SameSize(Checker check, Window w, string what, double width, double height)
+    {
+        bool same = Math.Abs(w.ActualWidth - width) < 0.5 &&
+                    Math.Abs(w.ActualHeight - height) < 0.5;
+
+        check.True(same
+                ? $"габарит окна не изменился ({what})"
+                : $"габарит окна не изменился ({what}) — было {width}x{height}, стало {w.ActualWidth}x{w.ActualHeight}",
+            same);
+    }
+
+    /// <summary>
+    /// Все токены на месте и разбираются.
+    ///
+    /// В WPF опечатка в имени ресурса и кривая геометрия иконки молчат до
+    /// открытия окна — а окно у дизайнера открывается позже, чем прогон у нас.
+    /// Список ключей в Theme.RequiredKeys и есть договор между токенами и
+    /// разметкой: убрали токен, не поправив окна, — краснеет здесь, а не там.
+    /// </summary>
+    private static void CheckTokens(Checker check, Application app)
+    {
+        var missing = new List<string>();
+        foreach (string key in Theme.RequiredKeys)
+        {
+            if (!app.Resources.Contains(key))
+                missing.Add(key);
+        }
+
+        check.True(missing.Count == 0
+                ? "дизайн-токены на месте"
+                : "дизайн-токены на месте — не найдены: " + string.Join(", ", missing),
+            missing.Count == 0);
+
+        // Геометрия иконок разбирается только при обращении: битая строка пути
+        // до этого момента выглядит как обычный текст.
+        int icons = 0;
+        var broken = new List<string>();
+        foreach (string key in Theme.RequiredKeys)
+        {
+            if (!key.StartsWith("I.", StringComparison.Ordinal))
+                continue;
+
+            try
+            {
+                if (app.Resources[key] is Geometry g && !g.IsEmpty())
+                    icons++;
+                else
+                    broken.Add(key);
+            }
+            catch (Exception ex)
+            {
+                broken.Add($"{key} ({ex.Message})");
+            }
+        }
+
+        check.True(broken.Count == 0
+                ? $"иконки разбираются в геометрию ({icons} шт.)"
+                : "иконки разбираются в геометрию — сломаны: " + string.Join(", ", broken),
+            broken.Count == 0);
+
+        CheckIconsMatchSvg(check, app);
+    }
+
+    /// <summary>
+    /// Значки в программе совпадают с исходными SVG.
+    ///
+    /// Дизайнер правит Icons\*.svg в редакторе, sync-icons.cmd переносит их в
+    /// Icons.xaml. Забыть второй шаг легко, и тогда получается худший вид
+    /// расхождения: в репозитории значок новый, в программе старый, и никто
+    /// об этом не узнает. Сверяем разобранную геометрию, а не текст: одна и та
+    /// же фигура записывается по-разному («M5,12» и «M 5 12»), и сравнение
+    /// строк ругалось бы на пустом месте.
+    /// </summary>
+    private static void CheckIconsMatchSvg(Checker check, Application app)
+    {
+        var assembly = typeof(CupsForge.AutoWindow).Assembly;
+        var svgNames = assembly.GetManifestResourceNames()
+            .Where(n => n.EndsWith(".svg", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (svgNames.Count == 0)
+        {
+            check.Fail("исходные SVG значков не вложены в сборку");
+            return;
+        }
+
+        var stale = new List<string>();
+        int compared = 0;
+
+        foreach (string resource in svgNames)
+        {
+            string file = resource[(resource.LastIndexOf('.', resource.Length - 5) + 1)..];
+            string key = "I." + string.Concat(
+                Path.GetFileNameWithoutExtension(file).Split('-')
+                    .Where(p => p.Length > 0)
+                    .Select(p => char.ToUpperInvariant(p[0]) + p[1..]));
+
+            string svg;
+            using (var stream = assembly.GetManifestResourceStream(resource))
+            {
+                if (stream == null) continue;
+                using var reader = new StreamReader(stream);
+                svg = reader.ReadToEnd();
+            }
+
+            var paths = System.Text.RegularExpressions.Regex.Matches(svg, "<path[^>]*\\sd=\"([^\"]+)\"");
+            if (paths.Count == 0)
+            {
+                stale.Add($"{file} (нет <path d=…>)");
+                continue;
+            }
+
+            string data = string.Join(" ", paths.Select(m => m.Groups[1].Value.Trim()));
+
+            if (app.Resources[key] is not Geometry inProgram)
+            {
+                stale.Add($"{file} (в программе нет {key})");
+                continue;
+            }
+
+            try
+            {
+                if (Geometry.Parse(data).ToString() != inProgram.ToString())
+                    stale.Add(file);
+                else
+                    compared++;
+            }
+            catch (Exception ex)
+            {
+                stale.Add($"{file} ({ex.Message})");
+            }
+        }
+
+        check.True(stale.Count == 0
+                ? $"значки совпадают с исходными SVG ({compared} шт.)"
+                : "значки разошлись с SVG — запустите sync-icons.cmd: " + string.Join(", ", stale),
+            stale.Count == 0);
+    }
+
+    /// <summary>
+    /// Ошибка чинится на месте, одним полем.
+    ///
+    /// Разбор Bitrix ошибается обычно в одном поле из семи. Раньше клик по строке
+    /// открывал ручной ввод целиком, и дизайнер перезаполнял шесть верных полей
+    /// ради одного неверного. Проверяем весь путь: результат → клик по строке →
+    /// лист → выбор → значение изменилось, окно не выросло.
+    /// </summary>
+    private static void FixOneField(Checker check, AutoWindow w, double width, double height)
+    {
+        // Заказ как из Bitrix, но без похода в сеть.
+        w.ShowResult(new ResolvedDesign
+        {
+            Id = 132583,
+            OrderName = "CarBar (132583 CarBar ST DW90-430)",
+            DesignCode = "132583 CarBar ST DW90-430",
+            Brand = Brand.MyCups,
+            ProductType = ProductTypes.Cups,
+            ProductArticul = "DW90-430",
+            PrintTech = PrintTech.Offset,
+            Material = Material.Uncoated,
+            RawSide = "Белый немелованный"
+        });
+
+        check.True("разобранный заказ показывается результатом", Visible(w, "StateResult"));
+        check.True("«Создать проект» доступно на разобранном заказе",
+                   (w.FindName("BuildButton") as Button)?.IsEnabled == true);
+        Snapshot(w, "5-результат");
+
+        if (w.FindName("ResultFields") is not ItemsControl fields)
+        {
+            check.Fail("список полей результата не найден");
+            return;
+        }
+
+        // Строки — данные: состав собран из заказа, пустые не показываются.
+        check.True($"поля результата собраны из данных ({fields.Items.Count} строк)",
+                   fields.Items.Count >= 5);
+
+        var material = fields.Items.Cast<ResultField>()
+            .FirstOrDefault(f => f.Label == "Материал");
+
+        if (material == null)
+        {
+            check.Fail("строки «Материал» нет в результате");
+            return;
+        }
+
+        check.True("у поправимой строки есть ключ правки", !string.IsNullOrEmpty(material.FixKey));
+
+        // Открываем лист так же, как пользователь: через кнопку строки.
+        var row = FindRowButton(fields, material);
+        if (row == null)
+        {
+            check.Fail("строка «Материал» не нажимается");
+            return;
+        }
+
+        row.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        check.True("клик по строке открывает лист правки", Visible(w, "FixOverlay"));
+        SameSize(check, w, "лист правки", width, height);
+        Snapshot(w, "6-правка-поля");
+
+        check.Equal("лист назван по правимому полю",
+                    (w.FindName("FixTitle") as TextBlock)?.Text, "Выберите материал");
+
+        if (w.FindName("FixOptions") is not ItemsControl options || options.Items.Count == 0)
+        {
+            check.Fail("в листе правки нет вариантов");
+            return;
+        }
+
+        check.Equal("варианты материала",
+                    string.Join(", ", options.Items.Cast<FixOption>().Select(o => o.Label)),
+                    "Немелованный, Мелованный");
+
+        // Выбираем «Мелованный» — значение в результате обязано смениться.
+        var pick = options.ItemContainerGenerator.Items.Cast<FixOption>()
+            .Select((o, i) => (o, i)).First(p => p.o.Label == "Мелованный");
+
+        if (FindOptionButton(options, pick.o) is not Button optionButton)
+        {
+            check.Fail("вариант «Мелованный» не нажимается");
+            return;
+        }
+
+        optionButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        check.True("лист закрывается после выбора", !Visible(w, "FixOverlay"));
+
+        var after = (w.FindName("ResultFields") as ItemsControl)?.Items.Cast<ResultField>()
+            .FirstOrDefault(f => f.Label == "Материал");
+        check.Equal("правка применилась к результату", after?.Value, "Coated");
+
+        // Правка одного поля не должна ронять остальные.
+        check.Equal("остальные поля не потерялись",
+                    (w.FindName("ResultFields") as ItemsControl)?.Items.Cast<ResultField>()
+                        .FirstOrDefault(f => f.Label == "Артикул")?.Value,
+                    "DW90-430");
+    }
+
+    private static Button? FindRowButton(ItemsControl list, ResultField field) =>
+        FindButton(list, field);
+
+    private static Button? FindOptionButton(ItemsControl list, FixOption option) =>
+        FindButton(list, option);
+
+    /// <summary>Кнопка строки по её данным: нажимаем так же, как пользователь.</summary>
+    private static Button? FindButton(ItemsControl list, object item)
+    {
+        list.UpdateLayout();
+        var container = list.ItemContainerGenerator.ContainerFromItem(item) as DependencyObject;
+        return container == null ? null : Descendant<Button>(container);
+    }
+
+    private static T? Descendant<T>(DependencyObject root) where T : DependencyObject
+    {
+        if (root is T hit)
+            return hit;
+
+        int count = VisualTreeHelper.GetChildrenCount(root);
+        for (int i = 0; i < count; i++)
+        {
+            var found = Descendant<T>(VisualTreeHelper.GetChild(root, i));
+            if (found != null)
+                return found;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Отмена мастера настройки должна что-то менять. Раньше EnsureConfigured
+    /// возвращал признак, который никто не проверял: человек жал «Отмена»,
+    /// окно открывалось как ни в чём не бывало, «Создать проект» звало сборщик
+    /// с несуществующими папками — и вместо «настройте рабочее место» дизайнер
+    /// получал ошибку про ненайденный файл шаблона.
+    /// </summary>
+    private static void WizardCancelled(Checker check)
+    {
+        MachineProfile saved = MachineProfile.Current;
+        try
+        {
+            // Профиль с заведомо отсутствующими папками — мастер обязан понадобиться.
+            MachineProfile.Set(MachineProfile.FromStakanyRoot(
+                Path.Combine(Path.GetTempPath(), "cupsforge_selfcheck_ui", "нет-такой-папки")));
+
+            check.True("без рабочих папок мастер нужен", SettingsPanel.NeedsWizard(out string why));
+            check.True("причина названа словами", !string.IsNullOrWhiteSpace(why));
+
+            // Раньше здесь стояла подмена показа диалога: мастер был модальным
+            // окном, и прогон на нём вис — закрыть его некому. Панель внутри
+            // окна проверяется как обычная разметка, шов больше не нужен.
+            var window = new AutoWindow();
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+
+                check.True("панель настроек открывается сама",
+                    (window.FindName("SettingsOverlay") as UIElement)?.Visibility == Visibility.Visible);
+                check.True("ненастроенное место гасит «Создать проект»",
+                    (window.FindName("BuildButton") as Button)?.IsEnabled == false);
+                check.True("ненастроенное место объясняется на экране",
+                    (window.FindName("NoticeBar") as UIElement)?.Visibility == Visibility.Visible);
+                check.True("причина видна в самом уведомлении",
+                    !string.IsNullOrWhiteSpace((window.FindName("NoticeText") as TextBlock)?.Text));
+
+                // Закрыть панель, ничего не настроив, нельзя: за ней всё равно
+                // нет ничего, чем можно пользоваться.
+                if (window.FindName("SettingsHost") is ContentControl host &&
+                    host.Content is SettingsPanel panel &&
+                    panel.FindName("CancelButton") is Button cancel)
+                {
+                    // Закрыть панель можно всегда. Запрет держится не на ней,
+                    // а на «Создать проект»: неработающий крестик человек читает
+                    // как зависшую программу, а не как правило.
+                    cancel.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                    check.True("отмена закрывает панель даже без папок",
+                        (window.FindName("SettingsOverlay") as UIElement)?.Visibility != Visibility.Visible);
+                    check.True("но запрет на создание остаётся",
+                        (window.FindName("BuildButton") as Button)?.IsEnabled == false);
+                    check.True("и причина остаётся на экране",
+                        (window.FindName("NoticeBar") as UIElement)?.Visibility == Visibility.Visible);
+                }
+                else
+                {
+                    check.Fail("панель настроек не найдена внутри окна");
+                }
+
+                // Настоящая ловушка: кнопка выключена и так, по разметке. Но карандаш
+                // включал её безусловно — и «Создать проект» звал сборщик с папками,
+                // которых нет. Ручной ввод не обходит ненастроенное рабочее место.
+                (window.FindName("PencilButton") as Button)?
+                    .RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                if (window.FindName("ManualNameBox") is TextBox box)
+                    box.Text = "132583 CarBar ST DW90-430";
+
+                check.True("ручной ввод не обходит ненастроенное рабочее место",
+                    (window.FindName("ManualBuildButton") as Button)?.IsEnabled == false);
+            }
+            finally
+            {
+                window.Close();
+            }
+        }
+        catch (Exception ex)
+        {
+            check.Fail("проверка отмены мастера сорвалась: " + ex.Message);
+        }
+        finally
+        {
+
+            MachineProfile.Set(saved);
         }
     }
 

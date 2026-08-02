@@ -8,31 +8,51 @@
     <Nullable>enable</Nullable>
     <RootNamespace>CupsForge</RootNamespace>
     <AssemblyName>CupsForge</AssemblyName>
-    <!-- Версия сравнивается с раздачей при запуске. Поднимайте перед публикацией. -->
+    <!-- Версия при обычной сборке. При выпуске её задаёт publish.ps1 из git,
+         чтобы забыть поднять было невозможно. -->
     <Version>3.0.0</Version>
     <ApplicationIcon>..\Images\Icon\logo.ico</ApplicationIcon>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
-    <PublishSingleFile>true</PublishSingleFile>
-    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <!-- Вдвое меньше файл: дизайнеры на удалёнке таскают его через RDP вручную. -->
-    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+
+    <!--
+        PublishSingleFile ВЫКЛЮЧЕН намеренно.
+
+        Он стоял ради того, чтобы дизайнер мог перенести программу одним файлом
+        через RDP. Эту задачу теперь решает Setup.exe: его получают ОДИН раз,
+        дальше носить нечего — обновления приходят сами.
+
+        А дельта-обновления с одним файлом несовместимы: разница считается
+        по файлам, и в едином сжатом блобе меняется практически всё. Проверено
+        на пробнике: папкой дельта вышла 3,6 КБ против 2,2 МБ полного пакета.
+        Ради этого всё и затевалось — «сдвинуть кнопку на полпикселя» не должно
+        стоить дизайнеру восьмидесяти мегабайт.
+    -->
   </PropertyGroup>
 
-  <!-- appsettings.json копируется рядом с exe -->
+  <!-- Ядро отдельным проектом: в нём нет WPF, и попытка тронуть окно оттуда
+       не соберётся. Раньше это была папка, втянутая globом, и «ядро не знает
+       про окна» держалось на договорённости — она успела нарушиться. -->
   <ItemGroup>
-    <None Update="appsettings.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    <ProjectReference Include="..\Core\CupsForge.Core.csproj" />
   </ItemGroup>
 
-  <!-- Общий модуль (пути/шаблоны/enum'ы) — единый источник с ручным редактором -->
   <ItemGroup>
-    <Compile Include="..\Shared\**\*.cs" Link="Shared\%(RecursiveDir)%(Filename)%(Extension)" />
-    <!-- Окно настроек тоже общее: одна разметка на обе программы. -->
-    <Page Include="..\Shared\SettingsWindow.xaml" Link="Shared\SettingsWindow.xaml" />
-    <!-- Каталог продуктов: копия внутри программы — последний источник в цепочке. -->
-    <EmbeddedResource Include="..\Shared\catalog.json" Link="Shared\catalog.json" />
+    <!-- Словари темы (Theme\*.xaml) и разметку панели SDK подхватывает сам:
+         они лежат внутри проекта. Перечислять их здесь нельзя — получатся
+         дубли, и сборка встанет.
+
+         Исходные SVG значков. В работе не используются — из них собран
+         Icons.xaml. Нужны самопроверке, чтобы сверить: не забыли ли
+         sync-icons.cmd после правки значка. Весят ~8 КБ на все двадцать. -->
+    <EmbeddedResource Include="..\Icons\*.svg" Link="Icons\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!-- Самопроверке нужен доступ к внутренним точкам окна: показать разобранный
+       заказ без похода в Bitrix иначе нельзя, а состояние результата и лист
+       правки — половина интерфейса. Публичным API это делать незачем. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="selfcheck" />
   </ItemGroup>
 
   <!-- Та же защита, что и в корневом проекте: без неё вынос obj/bin наружу
@@ -43,12 +63,12 @@
 
   <!-- Шрифты (переиспользуем из родительского проекта) -->
   <ItemGroup>
-    <Resource Include="..\Fonts\SFProText-Bold.ttf"          Link="Fonts\SFProText-Bold.ttf" />
-    <Resource Include="..\Fonts\SFProText-BoldItalic.ttf"    Link="Fonts\SFProText-BoldItalic.ttf" />
-    <Resource Include="..\Fonts\SFProText-Light.ttf"         Link="Fonts\SFProText-Light.ttf" />
-    <Resource Include="..\Fonts\SFProText-Medium.ttf"        Link="Fonts\SFProText-Medium.ttf" />
-    <Resource Include="..\Fonts\SFProText-Regular.ttf"       Link="Fonts\SFProText-Regular.ttf" />
-    <Resource Include="..\Fonts\SFProText-Semibold.ttf"      Link="Fonts\SFProText-Semibold.ttf" />
+    <Resource Include="..\Fonts\SFProText-Bold.ttf" Link="Fonts\SFProText-Bold.ttf" />
+    <Resource Include="..\Fonts\SFProText-BoldItalic.ttf" Link="Fonts\SFProText-BoldItalic.ttf" />
+    <Resource Include="..\Fonts\SFProText-Light.ttf" Link="Fonts\SFProText-Light.ttf" />
+    <Resource Include="..\Fonts\SFProText-Medium.ttf" Link="Fonts\SFProText-Medium.ttf" />
+    <Resource Include="..\Fonts\SFProText-Regular.ttf" Link="Fonts\SFProText-Regular.ttf" />
+    <Resource Include="..\Fonts\SFProText-Semibold.ttf" Link="Fonts\SFProText-Semibold.ttf" />
     <Resource Include="..\Fonts\SFProText-SemiboldItalic.ttf" Link="Fonts\SFProText-SemiboldItalic.ttf" />
   </ItemGroup>
 
@@ -59,5 +79,4 @@
     </Resource>
     <Resource Include="..\Images\Icon\logo_white.ico" Link="Images\Icon\logo_white.ico" />
   </ItemGroup>
-
 </Project>

@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+      Ядро: предметная область и работа с диском. Каталог продуктов, логические
+      корни, подбор шаблона, создание проекта, профиль машины, обновления.
+
+      ЗДЕСЬ НЕТ WPF — и это главное, ради чего ядро выделено в отдельный проект.
+      Раньше «ядро не знает про окна» держалось на договорённости: код лежал
+      в папке, которую приложение втягивало в свою сборку, и ничто не мешало
+      написать в нём using System.Windows. Договорённость успела нарушиться
+      в четырёх файлах, и никто этого не заметил.
+
+      Теперь это проверяет компилятор: UseWPF здесь нет, ссылки на
+      PresentationFramework нет, и попытка тронуть окно из ядра не соберётся.
+
+      Цель — net8.0 без «-windows»: ядро не зависит и от самой Windows,
+      кроме поиска Illustrator в реестре (он под условной компиляцией
+      не нуждается — Microsoft.Win32.Registry работает как пакет).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>CupsCore</RootNamespace>
+    <AssemblyName>CupsForge.Core</AssemblyName>
+    <DefaultItemExcludes>$(DefaultItemExcludes);**\bin\**;**\obj\**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Каталог продуктов: копия внутри программы — последний источник
+         в цепочке, чтобы программа работала даже без папки шаблонов. -->
+    <EmbeddedResource Include="catalog.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Реестр нужен поиску Illustrator: он ставится куда угодно, и путь
+         к нему берётся оттуда, а не угадывается. -->
+    <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
+    <!-- Обновление программы. Живёт в ядре, потому что не касается окон:
+         решает, есть ли новая версия и откуда её взять. -->
+    <PackageReference Include="Velopack" Version="1.2.0" />
+  </ItemGroup>
+
+</Project>

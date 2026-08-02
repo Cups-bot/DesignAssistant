@@ -85,6 +85,48 @@ namespace CupsForge.Models
         public List<string> Warnings { get; } = new();
 
         /// <summary>
+        /// Копия с поправленным полем — для листа точечной правки.
+        ///
+        /// Возвращает НОВЫЙ объект, а не меняет этот: разобранный заказ должен
+        /// оставаться тем, что ответил Bitrix. Иначе «что пришло» и «что поправил
+        /// человек» перемешиваются, и в журнале потом не разобрать, откуда
+        /// взялось значение.
+        ///
+        /// Исходные строки Bitrix (Raw*) НЕ переносятся для поправленных полей:
+        /// показывать «Офсет → Цифра» после ручной правки значит утверждать, что
+        /// так распознал разбор, а он распознал ровно наоборот.
+        /// </summary>
+        public ResolvedDesign With(Brand? brand = null, string? productType = null,
+                                   PrintTech? printTech = null, Material? material = null,
+                                   Coating? coating = null, Country? country = null,
+                                   string? variant = null, string? article = null)
+        {
+            var copy = new ResolvedDesign
+            {
+                Id = Id,
+                OrderName = OrderName,
+                DesignCode = DesignCode,
+                Brand = brand ?? Brand,
+                Country = country ?? Country,
+                ProductType = productType ?? ProductType,
+                ProductArticul = article ?? ProductArticul,
+                PrintTech = printTech ?? PrintTech,
+                Material = material ?? Material,
+                Coating = coating ?? Coating,
+                Variant = variant ?? Variant,
+                RawProject = brand == null ? RawProject : "",
+                RawType = productType == null ? RawType : "",
+                RawPrint = printTech == null ? RawPrint : "",
+                RawSide = material == null ? RawSide : "",
+                RawCoating = coating == null ? RawCoating : "",
+                RawLang = country == null ? RawLang : "",
+                RawFlavor = variant == null ? RawFlavor : ""
+            };
+            copy.Warnings.AddRange(Warnings);
+            return copy;
+        }
+
+        /// <summary>
         /// Заявка на создание проекта. Артикул пришёл из Bitrix, поэтому передаётся
         /// как есть — из имени дизайна его доставать не нужно.
         /// </summary>

@@ -18,6 +18,8 @@ public static class LogicChecks
         MachineProfile.Set(MachineProfile.CreateOfficeDefault());
         CatalogService.Reload();
 
+        Layers(check);
+        Diagnostics(check);
         Catalog(check);
         OutputRoots(check);
         Templates(check);
@@ -35,6 +37,98 @@ public static class LogicChecks
         MachineProfile.Set(MachineProfile.CreateOfficeDefault());
         Paths.ResetIllustratorCache();
         CatalogService.Reload();
+    }
+
+    /// <summary>
+    /// Границы слоёв. Ядро не должно знать про окна.
+    ///
+    /// Это единственный инвариант, который раньше держался только на
+    /// договорённости: код лежал в папке, которую приложение втягивало в свою
+    /// сборку, и ничто не мешало написать в нём using System.Windows. К моменту
+    /// проверки договорённость была нарушена в четырёх файлах, и никто этого
+    /// не замечал.
+    ///
+    /// Теперь ядро — отдельная сборка без WPF, и нарушение не соберётся.
+    /// Проверка сторожит от возврата: кто-нибудь включит UseWPF «на минутку»,
+    /// сборка пройдёт, а граница исчезнет молча.
+    /// </summary>
+    private static void Layers(Checker check)
+    {
+        check.Section("Границы слоёв");
+
+        var core = typeof(MachineProfile).Assembly;
+        check.Equal("ядро — отдельная сборка", core.GetName().Name, "CupsForge.Core");
+
+        var wpf = core.GetReferencedAssemblies()
+            .Where(a => a.Name is "PresentationFramework" or "PresentationCore" or "WindowsBase")
+            .Select(a => a.Name!)
+            .ToList();
+
+        check.True(wpf.Count == 0
+                ? "ядро не ссылается на WPF"
+                : "ядро не ссылается на WPF — а ссылается на: " + string.Join(", ", wpf),
+            wpf.Count == 0);
+
+        // Обратное направление обязано работать: приложение ядро видит.
+        check.True("приложение ссылается на ядро",
+            typeof(CupsForge.AutoWindow).Assembly.GetReferencedAssemblies()
+                .Any(a => a.Name == "CupsForge.Core"));
+    }
+
+    /// <summary>
+    /// Журнал на диск. Главное здесь не запись, а то, ЧЕГО в файле быть
+    /// не должно: ключ доступа к Bitrix открывает API в интернете, а файл
+    /// дизайнер отправит по почте не задумываясь.
+    /// </summary>
+    private static void Diagnostics(Checker check)
+    {
+        check.Section("Журнал на диск");
+
+        var profile = MachineProfile.CreateOfficeDefault();
+        profile.Bitrix.AuthorizationHeader = "c3VwZXItc2VjcmV0LWtleS0xMjM0NQ==";
+        MachineProfile.Set(profile);
+
+        // Заголовок авторизации в любом виде — самый частый способ утечки:
+        // он попадает в сообщения об ошибках HTTP сам собой.
+        string scrubbed = DiagnosticLog.Scrub(
+            "Сбой запроса: Authorization: Basic c3VwZXItc2VjcmV0LWtleS0xMjM0NQ== отклонён");
+        check.True("ключ из заголовка вычищен", !scrubbed.Contains("c3VwZXIt"));
+        check.True("на его месте видно, что он был", scrubbed.Contains("ключ скрыт"));
+        check.True("остальной текст цел", scrubbed.Contains("Сбой запроса"));
+
+        // И сам ключ, если попал в строку без заголовка.
+        string bare = DiagnosticLog.Scrub("ключ = c3VwZXItc2VjcmV0LWtleS0xMjM0NQ==");
+        check.True("голый ключ тоже вычищен", !bare.Contains("c3VwZXIt"));
+
+        check.True("Bearer вычищается так же",
+            !DiagnosticLog.Scrub("Bearer abcdefghijklmnop").Contains("abcdefghij"));
+
+        // Обычный текст трогать нельзя: журнал, съевший половину сообщений,
+        // хуже журнала без вычистки.
+        const string plain = "Каталог: версия 2 от 2026-07-28 — файл рядом с программой";
+        check.Equal("обычный текст не тронут", DiagnosticLog.Scrub(plain), plain);
+
+        // Пустой ключ не должен превращать всё подряд в «скрыт».
+        var empty = MachineProfile.CreateOfficeDefault();
+        MachineProfile.Set(empty);
+        check.Equal("без ключа вычищать нечего", DiagnosticLog.Scrub(plain), plain);
+
+        // Запись доходит до диска и попадает в песочницу, а не в рабочий
+        // профиль: хранение на время прогона уведено, и журнал обязан ехать
+        // вместе с ним.
+        DiagnosticLog.Write("проверка записи журнала");
+        bool wrote = File.Exists(DiagnosticLog.TodayFile);
+        check.True("строка доходит до файла", wrote);
+        if (wrote)
+        {
+            string written = File.ReadAllText(DiagnosticLog.TodayFile);
+            check.True("в файле есть время и текст",
+                written.Contains("проверка записи журнала") && written.Contains(":"));
+            check.True("файл журнала лежит в песочнице, а не в профиле машины",
+                DiagnosticLog.DirectoryPath.Contains("selfcheck", StringComparison.OrdinalIgnoreCase));
+        }
+
+        MachineProfile.Set(MachineProfile.CreateOfficeDefault());
     }
 
     private static void Catalog(Checker check)
@@ -315,6 +409,13 @@ public static class LogicChecks
         Paths.ResetIllustratorCache();
         CatalogService.Reload();
 
+        // Прогон не имеет права трогать Illustrator на машине разработчика.
+        // Раньше указанный выше несуществующий путь молча заменялся найденным
+        // автопоиском, и самопроверка открывала настоящий Illustrator с файлом-
+        // заглушкой из песочницы. Он показывал «ID: -54» и ждал нажатия «ОК» —
+        // прогон стоял, пока человек не подойдёт к чужому окну.
+        check.True("настоящий Illustrator в песочнице не подбирается", !Paths.IllustratorFound);
+
         CreateFakeTemplates();
 
         void Build(string what, BuildRequest request, string expectedFolder, params string[] expectedArgs)
@@ -325,6 +426,10 @@ public static class LogicChecks
                 check.Fail($"{what}: проект не создан — {string.Join("; ", r.Log)}");
                 return;
             }
+
+            // Прямое доказательство, что чужой Illustrator не трогали: косвенной
+            // проверки «путь не подобрался» мало — запуск идёт другой веткой.
+            check.True(what + " → Illustrator не запускался", !r.IllustratorLaunched);
 
             check.Equal(what + " → имя папки", Path.GetFileName(r.ProjectPath), expectedFolder);
             check.True(what + " → .ai на месте",
@@ -424,59 +529,68 @@ public static class LogicChecks
     }
 
     /// <summary>
-    /// Обновления. Саму подмену файла не гоняем — она перезапускает программу,
-    /// поэтому проверяем всё, что до неё: сравнение версий, раскрытие пути
-    /// раздачи и поведение, когда раздачи нет.
+    /// Обновления.
+    ///
+    /// Скачивание и подмену файлов делает Velopack — их не гоняем: для этого
+    /// нужна настоящая раздача, а применение перезапускает программу. Проверяем
+    /// всё, что решаем МЫ: какие каналы, в каком порядке, и что программа
+    /// говорит, когда обновляться нельзя.
+    ///
+    /// Часть прежних проверок отсюда ушла вместе с механизмом, который они
+    /// стерегли: сравнение версий, чтение latest.json, разбор следа
+    /// .cmd-скрипта и запрет писать на раздачу. Всё это теперь внутри Velopack.
     /// </summary>
     private static void Updates(Checker check)
     {
         check.Section("Обновления");
 
-        check.True("2.0.0 новее 1.9.9", Updater.IsNewer("2.0.0", "1.9.9"));
-        check.True("3.0.10 новее 3.0.9", Updater.IsNewer("3.0.10", "3.0.9"));
-        check.True("та же версия не новее", !Updater.IsNewer("3.0.0", "3.0.0"));
-        check.True("старая версия не новее", !Updater.IsNewer("2.9.9", "3.0.0"));
-        check.True("мусор не считается новее", !Updater.IsNewer("абра-кадабра", "1.0.0"));
-
         // Раздача лежит рядом с рабочей папкой: Y:\STAKANY\..\Soft → Y:\Soft.
         MachineProfile.Set(MachineProfile.CreateOfficeDefault());
         check.Equal("путь раздачи схлопывает «..»",
             PathResolver.Expand(MachineProfile.Current.UpdateSource),
-            @"Y:\Soft\CupsForge\release");
+            System.IO.Path.Combine(@"Y:\Soft\CupsForge", "release"));
 
-        // Раздачи нет (домашняя машина) — проверка молчит, а не падает.
+        // Каналов два, и порядок не случаен: сетевой диск быстр и работает
+        // без интернета, раздача — единственное, что достаёт до дома.
         string sandbox = Path.Combine(Path.GetTempPath(), "cupsforge_selfcheck_upd");
         if (Directory.Exists(sandbox)) Directory.Delete(sandbox, true);
 
-        var profile = MachineProfile.FromStakanyRoot(Path.Combine(sandbox, "STAKANY"));
-        MachineProfile.Set(profile);
-        check.True("нет раздачи — обновление не найдено и ошибки нет",
-            Updater.Check(out string? d1) == null && d1 == null);
+        var office = MachineProfile.FromStakanyRoot(Path.Combine(sandbox, "STAKANY"));
+        office.UpdateSource = Path.Combine(sandbox, "release");
+        Directory.CreateDirectory(office.UpdateSource);
 
-        // Раздача есть и версия новее — должна найтись.
-        string release = Path.Combine(sandbox, "release");
-        Directory.CreateDirectory(Path.Combine(release, "99.0.0"));
-        File.WriteAllText(Path.Combine(release, "99.0.0", "CupsForge.exe"), "");
-        File.WriteAllText(Path.Combine(release, Updater.ReleaseFileName),
-            """{"version":"99.0.0","folder":"99.0.0","notes":"тест"}""");
+        var both = AppUpdates.DescribeSources(office);
+        check.True($"каналов обновления два ({both.Count})", both.Count == 2);
+        check.True("сетевой диск проверяется первым",
+            both.Count > 0 && both[0].StartsWith("сетевой диск", StringComparison.Ordinal));
+        check.True("раздача проверяется второй",
+            both.Count > 1 && both[1].StartsWith("раздача", StringComparison.Ordinal));
 
-        profile.UpdateSource = release;
-        MachineProfile.Set(profile);
-        ReleaseInfo? found = Updater.Check(out _);
-        check.Equal("новая версия на раздаче найдена", found?.Version, "99.0.0");
-        check.Equal("примечание к версии прочитано", found?.Notes, "тест");
+        // Дома сетевого диска нет — остаётся один канал, и это НЕ ошибка.
+        var home = MachineProfile.FromStakanyRoot(Path.Combine(sandbox, "нет-такой"));
+        home.UpdateSource = Path.Combine(sandbox, "тоже-нет");
+        var homeOnly = AppUpdates.DescribeSources(home);
+        check.True($"без сетевого диска остаётся раздача ({homeOnly.Count})", homeOnly.Count == 1);
+        check.True("и это именно раздача",
+            homeOnly.Count > 0 && homeOnly[0].StartsWith("раздача", StringComparison.Ordinal));
 
-        // Версия не новее текущей — предлагать нечего.
-        File.WriteAllText(Path.Combine(release, Updater.ReleaseFileName),
-            """{"version":"0.0.1","folder":"99.0.0"}""");
-        check.True("старая версия на раздаче игнорируется", Updater.Check(out _) == null);
+        // Отключённая раздача убирает и второй канал: пустая строка означает
+        // «не ходить в интернет вовсе».
+        var offline = home.Clone();
+        offline.UpdateRepo = "";
+        check.True("пустой адрес раздачи выключает канал",
+            AppUpdates.DescribeSources(offline).Count == 0);
 
-        // Заявлена версия, но файла нет — честно сообщаем, а не молчим.
-        File.WriteAllText(Path.Combine(release, Updater.ReleaseFileName),
-            """{"version":"98.0.0","folder":"нет-такой-папки"}""");
-        Updater.Check(out string? d2);
-        check.True("обещанная версия без файла даёт понятную жалобу",
-            d2 != null && d2.Contains("98.0.0"));
+        // Портативный запуск обновлять нельзя, и программа обязана сказать
+        // почему. Прогон идёт именно так — из папки сборки, не из установки.
+        check.True("портативный запуск не считается установкой", !AppUpdates.IsInstalled);
+        string? cannot = AppUpdates.Unavailable();
+        check.True("отказ обновления объяснён", !string.IsNullOrWhiteSpace(cannot));
+        check.True("отказ ведёт к установщику",
+            (cannot ?? "").Contains("Setup.exe", StringComparison.OrdinalIgnoreCase));
+
+        check.True($"своя версия читается ({AppUpdates.CurrentVersion})",
+            System.Version.TryParse(AppUpdates.CurrentVersion, out _));
 
         Directory.Delete(sandbox, true);
         MachineProfile.Set(MachineProfile.CreateOfficeDefault());
@@ -527,16 +641,86 @@ public static class LogicChecks
         check.True("пустой доступ настроенным не считается",
             !new MachineProfile().Bitrix.IsConfigured);
 
+        // Сообщение об отсутствии доступа обязано вести туда, где поле есть.
+        // Оно уже дважды вело не туда: сперва в appsettings.json, которого на
+        // новой машине нет, потом в «логин и пароль», которых нет в настройках.
+        string noAccess = BitrixAccess.NotConfiguredMessage;
+        check.True("отказ по Bitrix не зовёт в appsettings.json",
+            !noAccess.Contains("appsettings", StringComparison.OrdinalIgnoreCase));
+        check.True("отказ по Bitrix не зовёт вводить пароль",
+            !noAccess.Contains("парол", StringComparison.OrdinalIgnoreCase));
+        check.True("отказ по Bitrix называет поле, которое есть в настройках",
+            noAccess.Contains("ключ", StringComparison.OrdinalIgnoreCase));
+
+        // Окно настроек правит копию, снятую при открытии, — иначе «Отмена» не
+        // работала бы. Но сохранять копию ЦЕЛИКОМ нельзя: пока окно открыто,
+        // программа могла записать в профиль своё, и запись клона откатывала это.
+        var live = MachineProfile.FromStakanyRoot(@"D:\Work\STAKANY");
+        var draft = live.Clone();
+        draft.Roots[MachineProfile.Root.Templates] = @"E:\Новое\_Templates";
+        draft.IllustratorExe = @"C:\AI\Illustrator.exe";
+
+        // Пока окно было открыто, программа согласилась качать шаблоны сама
+        // и запомнила состояние панели.
+        live.AutoSyncTemplates = true;
+        live.SpecPanelExpanded = false;
+
+        draft.ApplyEditableTo(live);
+        check.Equal("сохранение настроек переносит правки",
+            live.Roots[MachineProfile.Root.Templates], @"E:\Новое\_Templates");
+        check.Equal("сохранение настроек переносит Illustrator",
+            live.IllustratorExe, @"C:\AI\Illustrator.exe");
+        check.True("сохранение настроек не откатывает согласие на шаблоны",
+            live.AutoSyncTemplates);
+        check.True("сохранение настроек не откатывает состояние панели",
+            !live.SpecPanelExpanded);
+
         // Устаревший путь к Illustrator не выдаётся за рабочий.
         string ghost = Path.Combine(sandbox, "нет", "Illustrator.exe");
         string? resolved = IllustratorLocator.Resolve(ghost);
         check.True("несуществующий путь к Illustrator отбрасывается", resolved != ghost);
 
-        // Обновление отказывается трогать копию вне папки установки.
-        check.True("запуск из папки установки распознаётся",
-            Updater.IsInsideInstallFolder(Path.Combine(Updater.InstallFolder, "CupsForge.exe")));
-        check.True("запуск с сетевого диска не считается установкой",
-            !Updater.IsInsideInstallFolder(@"Y:\Soft\CupsForge\release\3.0.0\CupsForge.exe"));
+        // ...и не подменяется другой установкой молча. Дизайнер выбирает версию
+        // не от скуки: под неё написан JSX-скрипт. Запустить вместо 2022 найденный
+        // рядом 2025 — это испортить макет и не сказать об этом ни слова.
+        // Прежняя проверка выше этого не ловила: она сравнивала с самим путём,
+        // а подмена как раз даёт «что-то другое» и выглядела успехом.
+        check.True("исчезнувший Illustrator не подменяется другим молча", resolved == null);
+
+        // Отказ обязан объяснять себя и вести в настройки: «не удалось запустить»
+        // без адреса — это ровно та невнятность, из-за которой баг завели.
+        bool ok = IllustratorLocator.TryResolve(ghost, out _, out string? why);
+        check.True("отказ назван словами", !ok && !string.IsNullOrWhiteSpace(why));
+        check.True("в отказе есть пропавший путь", (why ?? "").Contains(ghost, StringComparison.Ordinal));
+        check.True("отказ ведёт в настройки", (why ?? "").Contains("настройк", StringComparison.OrdinalIgnoreCase));
+
+        // Защёлка: песочница не должна попадать в настоящий профиль.
+        // Сторож в конце прогона ловит это ПОСЛЕ факта — здесь запись просто
+        // не происходит. Именно так рабочие настройки однажды и подменились
+        // путями во временную папку, а заметили это спустя недели.
+        var real = MachineProfile.CreateOfficeDefault();
+        MachineProfile.RedirectStorage(null);
+        try
+        {
+            real.Roots[MachineProfile.Root.Templates] =
+                Path.Combine(Path.GetTempPath(), "cupsforge_selfcheck_ui", "STAKANY", "_Templates");
+
+            bool refused = false;
+            try { real.Save(); }
+            catch (InvalidOperationException) { refused = true; }
+
+            check.True("профиль с путём во временной папке сохранить нельзя", refused);
+        }
+        finally
+        {
+            // Возвращаем увод: остальной прогон обязан писать в песочницу.
+            MachineProfile.RedirectStorage(
+                Path.Combine(Path.GetTempPath(), "cupsforge_selfcheck_profile"));
+        }
+
+        // Запрет обновлять копию вне папки установки переехал в AppUpdates
+        // (проверяется в разделе «Обновления»): его держит Velopack, который
+        // сам знает, установлен он или запущен портативно.
 
         Directory.Delete(sandbox, true);
         MachineProfile.Set(MachineProfile.CreateOfficeDefault());

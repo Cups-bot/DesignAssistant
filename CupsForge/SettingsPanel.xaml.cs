@@ -4,82 +4,140 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
+using CupsCore;
 using System.Windows.Controls;
 using System.Windows.Media;
 
-namespace CupsCore
+namespace CupsForge
 {
     /// <summary>
-    /// Мастер настройки рабочего места: папки, режим (офис/своя машина), Illustrator.
+    /// Настройки рабочего места: папки, режим (офис/своя машина), Illustrator,
+    /// доступ к Bitrix, каталог.
     ///
-    /// Одно окно на обе программы — файл подключается ссылкой и в ручной редактор,
-    /// и в автоматическую программу. Правки идут в копию профиля, поэтому «Отмена»
-    /// действительно ничего не меняет.
+    /// Панель внутри главного окна, а не отдельное окно. Правки идут в КОПИЮ
+    /// профиля, поэтому «Отмена» действительно ничего не меняет; при сохранении
+    /// в живой профиль переносятся только поля этой панели (см. ApplyEditableTo).
     /// </summary>
-    public partial class SettingsWindow : Window
+    public partial class SettingsPanel : UserControl
     {
-        private readonly MachineProfile _draft;
+        private MachineProfile _draft = MachineProfile.Current.Clone();
         private readonly ObservableCollection<RootRow> _rows = new();
         private List<IllustratorChoice> _illustratorChoices = new();
         private bool _loading = true;
 
-        public SettingsWindow() : this(MachineProfile.Current) { }
+        /// <summary>Настройки сохранены. Окно должно перечитать состояние.</summary>
+        public event EventHandler? Saved;
 
-        /// <summary>
-        /// Показывает мастер при первом запуске, но только если работать сейчас нельзя —
-        /// то есть настроенных папок на этой машине нет.
-        ///
-        /// На рабочих местах в офисе сетевой диск на месте, профиль не нужен, и окно
-        /// не появляется: поведение остаётся прежним. Мастер видит ровно тот, кому он
-        /// нужен, — дизайнер на своей машине.
-        /// </summary>
-        /// <returns>true — можно работать дальше.</returns>
-        public static bool EnsureConfigured(Window owner)
-        {
-            // Решает наличие рабочих папок, а не наличие файла профиля.
-            // Раньше сохранённый профиль отключал мастер навсегда: сменилась буква
-            // диска — и вернуться к настройке было уже неоткуда.
-            var missing = MachineProfile.Current.FindMissingRoots();
-            if (missing.Count == 0 && MachineProfile.LoadProblem == null)
-                return true;
+        /// <summary>Панель закрыта без сохранения.</summary>
+        public event EventHandler? Cancelled;
 
-            var window = new SettingsWindow { Owner = owner };
-
-            if (MachineProfile.LoadProblem != null)
-                window.ShowMessage(MachineProfile.LoadProblem + " Проверьте папки.");
-            else if (MachineProfile.ExistsOnDisk)
-                window.ShowMessage(
-                    "Не найдены рабочие папки: " +
-                    string.Join(", ", missing.Select(MachineProfile.Root.Title)) +
-                    ". Возможно, изменилась буква диска или папку перенесли.");
-            else
-                window.ShowMessage(
-                    "Похоже, это первый запуск на новой машине: рабочих папок по стандартным путям нет. " +
-                    "Укажите, где они лежат здесь.");
-
-            return window.ShowDialog() == true;
-        }
-
-        public SettingsWindow(MachineProfile profile)
+        public SettingsPanel()
         {
             InitializeComponent();
-
-            _draft = profile.Clone();
             RootsList.ItemsSource = _rows;
+            Load();
+        }
+
+        /// <summary>
+        /// Перечитывает всё из профиля. Зовётся при каждом открытии панели:
+        /// она живёт вместе с окном, а профиль за это время мог измениться —
+        /// например, мастер настройки создал папки.
+        /// </summary>
+        public void Load()
+        {
+            _loading = true;
+
+            _draft = MachineProfile.Current.Clone();
 
             LoadRoots();
             LoadIllustrator();
             LoadCatalogInfo();
             LoadBitrix();
+            LoadLogInfo();
 
+            DrawerSwitch.IsChecked = _draft.SideDrawer;
             OfficeRadio.IsChecked = !IsRemote(_draft.Mode);
             RemoteRadio.IsChecked = IsRemote(_draft.Mode);
             BaseBox.Text = GuessStakanyRoot();
 
             _loading = false;
             RefreshStatuses();
+            HideMessage();
         }
+
+        /// <summary>
+        /// Нужен ли мастер настройки и что сказать человеку.
+        ///
+        /// Решает наличие рабочих папок, а не наличие файла профиля. Раньше
+        /// сохранённый профиль отключал мастер навсегда: сменилась буква диска —
+        /// и вернуться к настройке было уже неоткуда.
+        /// </summary>
+        public static bool NeedsWizard(out string message)
+        {
+            var missing = MachineProfile.Current.FindMissingRoots();
+            if (missing.Count == 0 && MachineProfile.LoadProblem == null)
+            {
+                message = "";
+                return false;
+            }
+
+            if (MachineProfile.LoadProblem != null)
+                message = MachineProfile.LoadProblem + " Проверьте папки.";
+            else if (MachineProfile.ExistsOnDisk)
+                message = "Не найдены рабочие папки: " +
+                          string.Join(", ", missing.Select(MachineProfile.Root.Title)) +
+                          ". Возможно, изменилась буква диска или папку перенесли.";
+            else
+                message = "Похоже, это первый запуск на новой машине: рабочих папок " +
+                          "по стандартным путям нет. Укажите, где они лежат здесь.";
+
+            return true;
+        }
+
+        /// <summary>
+        /// Сколько журнала накопилось. Нужно, чтобы человек понимал, что
+        /// именно он отправит: «файлов 3, 240 КБ» вместо «где-то там лежит».
+        /// </summary>
+        private void LoadLogInfo()
+        {
+            var files = DiagnosticLog.Files();
+            if (files.Count == 0)
+            {
+                LogInfo.Text = "Журнал пока пуст.";
+                return;
+            }
+
+            long bytes = 0;
+            foreach (string f in files)
+            {
+                try { bytes += new FileInfo(f).Length; } catch { }
+            }
+
+            string size = bytes >= 1024 * 1024
+                ? $"{bytes / 1024.0 / 1024.0:0.#} МБ"
+                : $"{bytes / 1024.0:0} КБ";
+
+            LogInfo.Text = $"Файлов: {files.Count}, {size}. Хранятся две недели. " +
+                           "Ключ доступа в них не попадает.";
+        }
+
+        private void OpenLogs_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                System.IO.Directory.CreateDirectory(DiagnosticLog.DirectoryPath);
+                System.Diagnostics.Process.Start("explorer.exe", DiagnosticLog.DirectoryPath);
+            }
+            catch (Exception ex)
+            {
+                ShowMessage("Не удалось открыть папку журнала: " + ex.Message);
+            }
+        }
+
+        /// <summary>Показать подсказку сверху — например, зачем панель открылась сама.</summary>
+        public void Announce(string message) => ShowMessage(message);
 
         private static bool IsRemote(string mode) =>
             string.Equals(mode, "remote", StringComparison.OrdinalIgnoreCase);
@@ -112,14 +170,19 @@ namespace CupsCore
         /// </summary>
         private string GuessStakanyRoot()
         {
+            if (_draft.Roots.TryGetValue(MachineProfile.Root.Base, out string? b) &&
+                !string.IsNullOrWhiteSpace(b))
+            {
+                return b;
+            }
+
             if (!_draft.Roots.TryGetValue(MachineProfile.Root.Templates, out string? templates) ||
                 string.IsNullOrWhiteSpace(templates))
             {
                 return "";
             }
 
-            string? parent = System.IO.Path.GetDirectoryName(templates.TrimEnd('\\', '/'));
-            return parent ?? "";
+            return System.IO.Path.GetDirectoryName(templates.TrimEnd('\\', '/')) ?? "";
         }
 
         private void LoadIllustrator()
@@ -128,7 +191,7 @@ namespace CupsCore
             _illustratorChoices = new List<IllustratorChoice>
             {
                 new(MachineProfile.AutoDetect, installs.Count > 0
-                    ? $"Автоматически — найден {installs[0].Title}"
+                    ? $"Автоматически — {installs[0].Title}"
                     : "Автоматически — пока не найден")
             };
 
@@ -153,7 +216,7 @@ namespace CupsCore
 
             IllustratorHint.Text = installs.Count switch
             {
-                0 => "Illustrator не найден автоматически. Укажите файл Illustrator.exe вручную — " +
+                0 => "Не найден автоматически. Укажите Illustrator.exe вручную — " +
                      "программа запомнит его только на этой машине.",
                 1 => $"Найдена одна установка: {installs[0].Title}.",
                 _ => $"Найдено установок: {installs.Count}. По умолчанию берётся самая свежая."
@@ -166,7 +229,7 @@ namespace CupsCore
             {
                 var catalog = CatalogService.Current;
                 CatalogInfo.Text = $"Версия {catalog.Version} от {catalog.Updated} · продуктов: {catalog.Products.Count}";
-                CatalogSource.Text = "Источник: " + catalog.SourceName;
+                CatalogSource.Text = catalog.SourceName;
             }
             catch (CatalogException ex)
             {
@@ -183,17 +246,14 @@ namespace CupsCore
         private void LoadBitrix()
         {
             BitrixKeyBox.Text = _draft.Bitrix.AuthorizationHeader;
-
             BitrixHint.Text =
-                "Ключ выдаёт тот, кто ведёт Bitrix. Вставьте его целиком — можно как есть, " +
-                "можно с приставкой «Basic». Нужен только для загрузки заказа по ссылке: " +
-                "ручной ввод работает и без него. Хранится на этой машине, в репозиторий не попадает.";
+                "Ключ выдаёт тот, кто ведёт Bitrix. Можно как есть, можно с приставкой " +
+                "«Basic». Нужен только для загрузки заказа по ссылке. Хранится на этой машине.";
         }
 
         /// <summary>
         /// Проверка связи с Bitrix. Ставится приложением: HTTP-клиент живёт в его слое,
-        /// а это окно общее и о Bitrix знать не обязано.
-        /// Принимает ключ, возвращает готовую фразу для человека и признак успеха.
+        /// а эта панель общая и о Bitrix знать не обязана.
         /// </summary>
         public static Func<string, Task<(bool ok, string message)>>? ConnectionTest { get; set; }
 
@@ -235,7 +295,6 @@ namespace CupsCore
         {
             CatalogService.Reload();
             LoadCatalogInfo();
-            LoadBitrix();
             ShowMessage("Каталог перечитан.", ok: true);
         }
 
@@ -245,7 +304,7 @@ namespace CupsCore
         /// </summary>
         private void CheckCatalog_Click(object sender, RoutedEventArgs e)
         {
-            // Проверяем по путям, введённым в окне, а не по сохранённому профилю —
+            // Проверяем по путям, введённым в панели, а не по сохранённому профилю —
             // иначе кнопка врала бы до нажатия «Сохранить».
             MachineProfile saved = MachineProfile.Current;
             var probe = _draft.Clone();
@@ -266,7 +325,7 @@ namespace CupsCore
                 if (errors.Count > 0)
                 {
                     ShowMessage($"Ошибки в описании каталога ({errors.Count}):\n• " +
-                                string.Join("\n• ", errors.Take(6)));
+                                string.Join("\n• ", errors.Take(4)));
                     return;
                 }
 
@@ -277,8 +336,8 @@ namespace CupsCore
                     return;
                 }
 
-                string list = string.Join("\n• ", missing.Take(8));
-                string tail = missing.Count > 8 ? $"\n…и ещё {missing.Count - 8}" : "";
+                string list = string.Join("\n• ", missing.Take(5));
+                string tail = missing.Count > 5 ? $"\n…и ещё {missing.Count - 5}" : "";
                 ShowMessage($"Не хватает файлов шаблонов ({missing.Count}):\n• {list}{tail}");
             }
             catch (CatalogException ex)
@@ -288,6 +347,7 @@ namespace CupsCore
             finally
             {
                 MachineProfile.Set(saved);
+                CatalogService.Reload();
             }
         }
 
@@ -348,7 +408,7 @@ namespace CupsCore
                 CheckFileExists = true
             };
 
-            if (dialog.ShowDialog(this) != true)
+            if (dialog.ShowDialog(Window.GetWindow(this)) != true)
                 return;
 
             var choice = new IllustratorChoice(dialog.FileName, dialog.FileName);
@@ -367,7 +427,7 @@ namespace CupsCore
                 ShowMessage("Все папки на месте.", ok: true);
             else
                 ShowMessage("Не найдено: " + string.Join(", ", missing) +
-                            ". Проверьте пути или нажмите «Создать недостающие папки».");
+                            ". Проверьте пути или нажмите «Создать папки».");
         }
 
         private void CreateFolders_Click(object sender, RoutedEventArgs e)
@@ -389,6 +449,14 @@ namespace CupsCore
                 {
                     failed.Add($"{row.Title} ({ex.Message})");
                 }
+            }
+
+            // Базовая папка тоже нужна: на неё ссылается каталог ("{base}/Lids").
+            string baseFolder = BaseBox.Text.Trim();
+            if (!string.IsNullOrWhiteSpace(baseFolder) && !Directory.Exists(baseFolder))
+            {
+                try { Directory.CreateDirectory(baseFolder); created.Add("Папка STAKANY"); }
+                catch (Exception ex) { failed.Add($"Папка STAKANY ({ex.Message})"); }
             }
 
             RefreshStatuses();
@@ -426,12 +494,19 @@ namespace CupsCore
             _draft.Bitrix.Password = "";
 
             _draft.Mode = RemoteRadio.IsChecked == true ? "remote" : "office";
+            _draft.SideDrawer = DrawerSwitch.IsChecked == true;
             _draft.IllustratorExe = (IllustratorCombo.SelectedItem as IllustratorChoice)?.Value
                                     ?? MachineProfile.AutoDetect;
 
+            // Сохраняем не копию целиком, а свои поля поверх живого профиля: пока
+            // панель была открыта, программа могла записать туда что-то своё
+            // (например, согласие на автозагрузку шаблонов).
+            MachineProfile live = MachineProfile.Current;
+            _draft.ApplyEditableTo(live);
+
             try
             {
-                _draft.Save();
+                live.Save();
             }
             catch (Exception ex)
             {
@@ -439,18 +514,14 @@ namespace CupsCore
                 return;
             }
 
-            MachineProfile.Set(_draft);
             Paths.ResetIllustratorCache();
+            CatalogService.Reload();
 
-            DialogResult = true;
-            Close();
+            Saved?.Invoke(this, EventArgs.Empty);
         }
 
-        private void Cancel_Click(object sender, RoutedEventArgs e)
-        {
-            DialogResult = false;
-            Close();
-        }
+        private void Cancel_Click(object sender, RoutedEventArgs e) =>
+            Cancelled?.Invoke(this, EventArgs.Empty);
 
         // ---------- служебное ----------
 
@@ -466,15 +537,13 @@ namespace CupsCore
             if (!string.IsNullOrWhiteSpace(initial) && Directory.Exists(initial))
                 dialog.InitialDirectory = initial;
 
-            return dialog.ShowDialog(this) == true ? dialog.FolderName : null;
+            return dialog.ShowDialog(Window.GetWindow(this)) == true ? dialog.FolderName : null;
         }
 
         private void ShowMessage(string text, bool ok = false)
         {
             MessageText.Text = text;
-            MessageText.Foreground = new SolidColorBrush(ok
-                ? Color.FromRgb(0x34, 0xD3, 0x99)
-                : Color.FromRgb(0xFB, 0xBF, 0x24));
+            MessageText.Foreground = Ui.Brush(ok ? "Ok" : "Warn");
             MessagePanel.Background = new SolidColorBrush(ok
                 ? Color.FromRgb(0x0C, 0x1F, 0x1A)
                 : Color.FromRgb(0x2A, 0x1B, 0x10));
@@ -491,8 +560,8 @@ namespace CupsCore
     public sealed class RootRow : INotifyPropertyChanged
     {
         private string _path = "";
-        private string _status = "";
         private Brush _statusBrush = Brushes.Gray;
+        private Geometry _statusIcon = Geometry.Empty;
 
         public string Key { get; init; } = "";
         public string Title { get; init; } = "";
@@ -503,36 +572,35 @@ namespace CupsCore
             set { _path = value ?? ""; Raise(nameof(Path)); }
         }
 
-        public string Status
-        {
-            get => _status;
-            private set { _status = value; Raise(nameof(Status)); }
-        }
-
         public Brush StatusBrush
         {
             get => _statusBrush;
             private set { _statusBrush = value; Raise(nameof(StatusBrush)); }
         }
 
+        /// <summary>
+        /// Значок вместо надписи «✓ есть / не найдена»: в панели 262 пикселя
+        /// текстовая отметка съедала половину строки, а понятна ровно так же.
+        /// </summary>
+        public Geometry StatusIcon
+        {
+            get => _statusIcon;
+            private set { _statusIcon = value; Raise(nameof(StatusIcon)); }
+        }
+
         public bool Exists => !string.IsNullOrWhiteSpace(Path) && Directory.Exists(Path);
 
         public void RefreshStatus()
         {
-            if (string.IsNullOrWhiteSpace(Path))
+            if (Exists)
             {
-                Status = "не задана";
-                StatusBrush = new SolidColorBrush(Color.FromRgb(0x9C, 0xA3, 0xAF));
-            }
-            else if (Exists)
-            {
-                Status = "✓ есть";
-                StatusBrush = new SolidColorBrush(Color.FromRgb(0x34, 0xD3, 0x99));
+                StatusIcon = Ui.Icon("I.CheckCircle");
+                StatusBrush = Ui.Brush("Ok");
             }
             else
             {
-                Status = "не найдена";
-                StatusBrush = new SolidColorBrush(Color.FromRgb(0xFB, 0xBF, 0x24));
+                StatusIcon = Ui.Icon("I.Warn");
+                StatusBrush = Ui.Brush(string.IsNullOrWhiteSpace(Path) ? "Dim" : "Warn");
             }
         }
 
@@ -552,5 +620,19 @@ namespace CupsCore
 
         public string Value { get; }
         public string Display { get; }
+    }
+
+    /// <summary>
+    /// Доступ к токенам из кода. Цвета и значки нужны и в разметке, и здесь
+    /// (строка папки выбирает значок по состоянию). Брать их отсюда, а не
+    /// заводить второй набор констант: иначе тема разъедется пополам.
+    /// </summary>
+    public static class Ui
+    {
+        public static Brush Brush(string key) =>
+            Application.Current?.TryFindResource(key) as Brush ?? Brushes.Gray;
+
+        public static Geometry Icon(string key) =>
+            Application.Current?.TryFindResource(key) as Geometry ?? Geometry.Empty;
     }
 }

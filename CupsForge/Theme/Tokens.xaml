@@ -1,0 +1,172 @@
+<!--
+    Дизайн-токены CupsForge — единственное место, где записаны значения.
+
+    Аналог :root из прототипа. Правило простое: ни один цвет, радиус, размер
+    или тайминг не пишется по месту. Увидели в разметке "#38BDF8" или "12" —
+    это ошибка, а не оптимизация: именно так предыдущая версия обзавелась
+    четырьмя оттенками серого, которые никто не выбирал.
+
+    Габарит окна тоже здесь. Заказчик хочет со временем сделать окно ещё
+    компактнее — это должно быть правкой ОДНОГО числа, а не перевёрсткой.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!-- ============ ЦВЕТ ============ -->
+    <!-- Роль, а не оттенок: "panel", а не "тёмно-синий". Перекрасить тему
+         значит поменять эти строки, не трогая ни одной разметки. -->
+
+    <Color x:Key="C.Bg">#04070F</Color>
+    <Color x:Key="C.Surface">#080E1B</Color>
+    <Color x:Key="C.Panel">#0B1220</Color>
+    <Color x:Key="C.Input">#0C1426</Color>
+    <Color x:Key="C.Line">#18202F</Color>
+    <Color x:Key="C.LineSoft">#121A28</Color>
+    <Color x:Key="C.Text">#E8EAEE</Color>
+    <Color x:Key="C.Muted">#98A2B3</Color>
+    <Color x:Key="C.Dim">#5E6A7D</Color>
+    <Color x:Key="C.Accent">#38BDF8</Color>
+    <Color x:Key="C.AccentDeep">#2563EB</Color>
+    <Color x:Key="C.Ok">#34D399</Color>
+    <Color x:Key="C.Warn">#FBBF24</Color>
+    <Color x:Key="C.Danger">#F97373</Color>
+
+    <SolidColorBrush x:Key="Bg"         Color="{StaticResource C.Bg}"/>
+    <SolidColorBrush x:Key="Surface"    Color="{StaticResource C.Surface}"/>
+    <SolidColorBrush x:Key="Panel"      Color="{StaticResource C.Panel}"/>
+    <SolidColorBrush x:Key="Input"      Color="{StaticResource C.Input}"/>
+    <SolidColorBrush x:Key="Line"       Color="{StaticResource C.Line}"/>
+    <SolidColorBrush x:Key="LineSoft"   Color="{StaticResource C.LineSoft}"/>
+    <SolidColorBrush x:Key="Text"       Color="{StaticResource C.Text}"/>
+    <SolidColorBrush x:Key="Muted"      Color="{StaticResource C.Muted}"/>
+    <SolidColorBrush x:Key="Dim"        Color="{StaticResource C.Dim}"/>
+    <SolidColorBrush x:Key="Accent"     Color="{StaticResource C.Accent}"/>
+    <SolidColorBrush x:Key="AccentDeep" Color="{StaticResource C.AccentDeep}"/>
+    <SolidColorBrush x:Key="Ok"         Color="{StaticResource C.Ok}"/>
+    <SolidColorBrush x:Key="Warn"       Color="{StaticResource C.Warn}"/>
+    <SolidColorBrush x:Key="Danger"     Color="{StaticResource C.Danger}"/>
+
+    <!-- Затемнение под шторками и панелями. -->
+    <SolidColorBrush x:Key="Scrim" Color="#020617" Opacity="0.6"/>
+
+    <!-- Один градиент на экран. Он помечает ЕДИНСТВЕННЫЙ следующий шаг:
+         как только им покрашено что-то ещё, состояние перестаёт читаться
+         с одного взгляда, ради чего всё и затевалось. -->
+    <LinearGradientBrush x:Key="AccentGradient" StartPoint="0,0" EndPoint="1,0">
+        <GradientStop Color="{StaticResource C.AccentDeep}" Offset="0"/>
+        <GradientStop Color="{StaticResource C.Accent}" Offset="1"/>
+    </LinearGradientBrush>
+
+    <!-- Подложка окна: слабое свечение сверху, чтобы плоскость не выглядела
+         наклейкой. Радиальная — как в прототипе. -->
+    <RadialGradientBrush x:Key="WindowBg" GradientOrigin="0.5,-0.1" Center="0.5,-0.1"
+                         RadiusX="0.85" RadiusY="0.8">
+        <GradientStop Color="#0A1426" Offset="0"/>
+        <GradientStop Color="{StaticResource C.Bg}" Offset="0.62"/>
+    </RadialGradientBrush>
+
+    <!-- ============ РАДИУСЫ ============ -->
+    <CornerRadius x:Key="R.Win">14</CornerRadius>
+    <CornerRadius x:Key="R.Md">12</CornerRadius>
+    <CornerRadius x:Key="R.Sm">9</CornerRadius>
+    <CornerRadius x:Key="R.Pill">999</CornerRadius>
+
+    <!-- ============ ОТСТУПЫ ============ -->
+    <Thickness x:Key="S.1">4</Thickness>
+    <Thickness x:Key="S.2">8</Thickness>
+    <Thickness x:Key="S.3">12</Thickness>
+    <Thickness x:Key="S.4">16</Thickness>
+    <Thickness x:Key="S.5">20</Thickness>
+
+    <!-- Поля сцены: единственное место, где задан внутренний отступ содержимого. -->
+    <Thickness x:Key="StagePadding">16,18,16,18</Thickness>
+
+    <!-- ============ РАЗМЕРЫ ============ -->
+    <!-- Окно — квадрат и константа во всех состояниях. Шторки, панели и листы
+         кладутся ПОВЕРХ сцены, поэтому ни одно состояние не меняет габарит.
+         Уменьшить окно = поменять эти два числа. -->
+    <sys:Double x:Key="Size.Window">390</sys:Double>
+    <sys:Double x:Key="Size.WindowHeight">390</sys:Double>
+
+    <sys:Double x:Key="Size.Titlebar">38</sys:Double>
+    <sys:Double x:Key="Size.Footer">36</sys:Double>
+    <sys:Double x:Key="Size.Field">42</sys:Double>
+    <sys:Double x:Key="Size.Action">44</sys:Double>
+    <sys:Double x:Key="Size.SettingsPanel">262</sys:Double>
+    <sys:Double x:Key="Size.Icon">24</sys:Double>
+    <sys:Double x:Key="Size.Stroke">1.7</sys:Double>
+
+    <!-- ============ ТИПОГРАФИКА ============ -->
+    <!-- SF Pro Text уже лежит в репозитории и подключён ресурсами. Прототип
+         рисовался в Segoe UI Variable — это ближайший системный аналог,
+         подменять свой шрифт системным смысла нет. -->
+    <FontFamily x:Key="F.Regular">pack://application:,,,/Fonts/#SF Pro Text</FontFamily>
+    <FontFamily x:Key="F.Medium">pack://application:,,,/Fonts/#SF Pro Text Medium</FontFamily>
+    <FontFamily x:Key="F.Semibold">pack://application:,,,/Fonts/#SF Pro Text Semibold</FontFamily>
+    <FontFamily x:Key="F.Bold">pack://application:,,,/Fonts/#SF Pro Text Bold</FontFamily>
+    <!-- Моноширинный — системный: пути и время должны быть узнаваемо «машинными».
+         Cascadia есть в Windows 11, Consolas — везде. -->
+    <FontFamily x:Key="F.Mono">Cascadia Mono, Consolas, Courier New</FontFamily>
+
+    <sys:Double x:Key="T.Title">15</sys:Double>
+    <sys:Double x:Key="T.Value">12.5</sys:Double>
+    <sys:Double x:Key="T.Body">12</sys:Double>
+    <sys:Double x:Key="T.Label">10.5</sys:Double>
+    <sys:Double x:Key="T.Mono">11</sys:Double>
+
+    <!-- Заголовок состояния: «Вставьте ссылку на заказ», «Проверяем заказ». -->
+    <Style x:Key="Title" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource F.Semibold}"/>
+        <Setter Property="FontSize" Value="{StaticResource T.Title}"/>
+        <Setter Property="Foreground" Value="{StaticResource Text}"/>
+        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+    </Style>
+
+    <!-- Значение поля в результате: то, что дизайнер сверяет глазами. -->
+    <Style x:Key="Value" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource F.Medium}"/>
+        <Setter Property="FontSize" Value="{StaticResource T.Value}"/>
+        <Setter Property="Foreground" Value="{StaticResource Text}"/>
+        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+    </Style>
+
+    <Style x:Key="Body" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource F.Regular}"/>
+        <Setter Property="FontSize" Value="{StaticResource T.Body}"/>
+        <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+
+    <!-- Метка группы: «РАБОЧЕЕ МЕСТО», «ПАПКИ НАПРАВЛЕНИЙ». -->
+    <Style x:Key="Label" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource F.Semibold}"/>
+        <Setter Property="FontSize" Value="{StaticResource T.Label}"/>
+        <Setter Property="Foreground" Value="{StaticResource Dim}"/>
+    </Style>
+
+    <!-- Пути, время, версии. Моноширинный говорит «это данные, а не текст». -->
+    <Style x:Key="Mono" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource F.Mono}"/>
+        <Setter Property="FontSize" Value="{StaticResource T.Mono}"/>
+        <Setter Property="Foreground" Value="{StaticResource Dim}"/>
+        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+    </Style>
+
+    <!-- ============ ТАЙМИНГИ ============ -->
+    <!-- Держим здесь же: анимация — такая же часть языка интерфейса, как цвет.
+         Разъехавшиеся тайминги читаются как разные программы в одном окне. -->
+    <Duration x:Key="M.Fast">0:0:0.14</Duration>
+    <Duration x:Key="M.Base">0:0:0.20</Duration>
+    <Duration x:Key="M.Slow">0:0:0.36</Duration>
+
+    <KeyTime x:Key="M.FastKey">0:0:0.14</KeyTime>
+    <KeyTime x:Key="M.BaseKey">0:0:0.20</KeyTime>
+    <KeyTime x:Key="M.SlowKey">0:0:0.36</KeyTime>
+
+    <!-- cubic-bezier(.22,.8,.36,1) из прототипа: быстрый старт, мягкая
+         остановка. У WPF нет кубической кривой из CSS, ближайшее по ощущению —
+         экспоненциальное замедление. -->
+    <ExponentialEase x:Key="Ease" EasingMode="EaseOut" Exponent="4.2"/>
+
+</ResourceDictionary>

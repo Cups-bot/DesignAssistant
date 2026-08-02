@@ -58,24 +58,54 @@ namespace CupsCore
 
         /// <summary>
         /// Значение из профиля → реальный путь. <c>"auto"</c> (или пусто) запускает поиск,
-        /// явный путь возвращается как есть. null — Illustrator не найден.
+        /// явный путь проверяется на существование. null — запускать нечего,
+        /// причина в <paramref name="problem"/>.
         /// </summary>
-        public static string? Resolve(string? configured)
+        /// <returns>true — путь найден и им можно пользоваться.</returns>
+        public static bool TryResolve(string? configured, out string? exe, out string? problem)
         {
-            if (string.IsNullOrWhiteSpace(configured) ||
-                string.Equals(configured, MachineProfile.AutoDetect, StringComparison.OrdinalIgnoreCase))
+            bool auto = string.IsNullOrWhiteSpace(configured) ||
+                        string.Equals(configured, MachineProfile.AutoDetect, StringComparison.OrdinalIgnoreCase);
+
+            if (auto)
             {
-                return FindBest();
+                exe = FindBest();
+                problem = exe == null
+                    ? "Illustrator не найден на этой машине. Укажите путь к Illustrator.exe в настройках."
+                    : null;
+                return exe != null;
+            }
+
+            if (File.Exists(configured))
+            {
+                exe = configured;
+                problem = null;
+                return true;
             }
 
             // Прописанный вручную путь мог устареть: Illustrator обновили, папка
-            // сменилась. Тогда честнее сказать «не найден» и предложить настройки,
-            // чем отдать мёртвый путь и получить невнятную ошибку запуска.
-            if (File.Exists(configured))
-                return configured;
+            // сменилась, диск отключили.
+            //
+            // Подставлять вместо него найденный автопоиском НЕЛЬЗЯ, хотя соблазн
+            // велик: версию выбирают не от скуки, под неё написан JSX-скрипт.
+            // Молча открыть 2025 вместо выбранного 2022 — это испортить макет
+            // и не сказать ни слова. Раньше именно так и было, и самопроверка
+            // на машине разработчика открывала настоящий Illustrator.
+            //
+            // Поэтому: не запускаем ничего, а называем и пропажу, и замену,
+            // которую человек может выбрать сам в настройках.
+            exe = null;
+            string alternative = FindBest() is { } other
+                ? $" Рядом найден другой: {other} — выберите его в настройках, если он подходит."
+                : " Других установок на машине не найдено.";
 
-            return FindBest();
+            problem = $"Illustrator, указанный в настройках, не найден: {configured}." + alternative;
+            return false;
         }
+
+        /// <inheritdoc cref="TryResolve"/>
+        public static string? Resolve(string? configured) =>
+            TryResolve(configured, out string? exe, out _) ? exe : null;
 
         // ---------- источники ----------
 

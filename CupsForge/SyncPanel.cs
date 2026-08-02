@@ -14,26 +14,41 @@ namespace CupsForge
     public partial class AutoWindow
     {
         private DistManifest? _manifest;
-        private DistApp? _distApp;
         private SyncPlan? _plan;
         private SyncState _syncState = SyncState.Load();
         private bool _syncing;
 
+        /// <summary>
+        /// Окно закрыли. Дальше трогать его элементы нельзя: раздача отвечает
+        /// по сети, ответ может прийти через несколько секунд после закрытия,
+        /// и запись в UpdateText упала бы необработанным исключением — уже
+        /// без окна, в котором её можно было бы показать.
+        /// </summary>
+        private bool _closed;
+
+        protected override void OnClosed(EventArgs e)
+        {
+            _closed = true;
+            CloseDock();
+            base.OnClosed(e);
+        }
+
         private async void CheckDistribution()
         {
             _manifest = await DistributionClient.FetchAsync();
+            if (_closed)
+                return;
+
             if (_manifest == null)
                 return; // нет сети или раздачи — молча работаем на своём
 
-            // Новая версия программы из раздачи — тот же канал, что и шаблоны.
-            var newApp = DistributionClient.NewerApp(_manifest);
-            if (newApp != null && _update == null)
-            {
-                _distApp = newApp;
-                UpdateText.Text = $"Доступна версия {newApp.Version}" +
-                                  (string.IsNullOrWhiteSpace(newApp.Notes) ? "" : $" · {newApp.Notes}");
-                UpdateBar.Visibility = Visibility.Visible;
-            }
+            // Опись пришла — в ней есть версия каталога, и теперь видно,
+            // отстал ли наш. Перерисовываем штамп в подвале журнала.
+            ReportCatalog();
+
+            // Программа обновляется отдельно, через Velopack (см. AppUpdates).
+            // Здесь — только шаблоны и каталог: они меняются часто, весят сотни
+            // мегабайт и живут своим сроком жизни.
 
             _plan = DistributionClient.Compare(_manifest, _syncState);
             if (_plan.IsEmpty)
@@ -46,31 +61,31 @@ namespace CupsForge
             // Согласие уже давали — обновляемся молча.
             if (MachineProfile.Current.AutoSyncTemplates)
             {
-                await RunSync(silent: true);
+                await RunSync();
                 return;
             }
 
-            SyncText.Text = _plan.IsFirstSync
-                ? $"Шаблоны ещё не скачаны: {_plan.Describe()}"
-                : $"Обновление шаблонов: {_plan.Describe()}";
-            SyncButton.Content = "Скачать";
-            SyncButton.IsEnabled = true;
-            SyncBar.Visibility = Visibility.Visible;
+            ShowNotice(NoticeIds.Sync,
+                _plan.IsFirstSync
+                    ? $"Шаблоны ещё не скачаны: {_plan.Describe()}"
+                    : $"Обновление шаблонов: {_plan.Describe()}",
+                NoticeKind.Info, "Скачать", () => _ = RunSync());
         }
 
-        private async void SyncButton_Click(object sender, RoutedEventArgs e) =>
-            await RunSync(silent: false);
-
-        private async Task RunSync(bool silent)
+        private async Task RunSync()
         {
             if (_plan == null || _plan.IsEmpty || _syncing)
                 return;
 
             _syncing = true;
-            SyncButton.IsEnabled = false;
-            SyncBar.Visibility = Visibility.Visible;
 
-            var progress = new Progress<string>(name => SyncText.Text = "Скачиваю " + name);
+            // Progress отдаёт в поток окна, но приходит и после закрытия — сотни
+            // файлов качаются долго, и последние доклады запросто переживут окно.
+            var progress = new Progress<string>(name =>
+            {
+                if (!_closed)
+                    ShowNotice(NoticeIds.Sync, "Скачиваю " + name, NoticeKind.Info);
+            });
 
             try
             {
@@ -79,12 +94,17 @@ namespace CupsForge
                 _syncState.FirstSyncDone = true;
                 _syncState.Save();
 
+                // Скачивание идёт минутами: окно вполне могли закрыть. Состояние
+                // на диск записали — оно не пропадёт, а трогать элементы уже нельзя.
+                if (_closed)
+                    return;
+
                 if (error != null)
                 {
-                    SyncText.Text = $"Скачано {done} из {_plan.Files.Count}, дальше не вышло";
-                    SyncButton.Content = "Повторить";
-                    SyncButton.IsEnabled = true;
-                    Log("Обновление шаблонов: " + error);
+                    ShowNotice(NoticeIds.Sync,
+                        $"Скачано {done} из {_plan.Files.Count}, дальше не вышло",
+                        NoticeKind.Warning, "Повторить", () => _ = RunSync());
+                    Log("Обновление шаблонов: " + error, NoticeKind.Warning);
                     return;
                 }
 
@@ -103,15 +123,17 @@ namespace CupsForge
                 CatalogService.Reload();
                 ReportCatalog();
 
-                SyncBar.Visibility = Visibility.Collapsed;
+                DropNotice(NoticeIds.Sync);
                 _plan = null;
             }
             catch (Exception ex)
             {
-                SyncText.Text = "Обновление не удалось";
-                SyncButton.Content = "Повторить";
-                SyncButton.IsEnabled = true;
-                Log("Обновление шаблонов: " + ex.Message);
+                if (_closed)
+                    return;
+
+                ShowNotice(NoticeIds.Sync, "Обновление не удалось",
+                           NoticeKind.Warning, "Повторить", () => _ = RunSync());
+                Log("Обновление шаблонов: " + ex.Message, NoticeKind.Warning);
             }
             finally
             {

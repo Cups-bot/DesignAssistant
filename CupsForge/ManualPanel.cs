@@ -24,6 +24,7 @@ namespace CupsForge
             public override string ToString() => Title;
         }
 
+        /// <summary>Окно сейчас в состоянии ручного ввода. Ставится SetStage.</summary>
         private bool _manualMode;
         private bool _manualLoading;
 
@@ -227,23 +228,6 @@ namespace CupsForge
             Spec = CurrentSpec()
         };
 
-        // ---------- переключение режима ----------
-
-        private void ToggleManual(bool show)
-        {
-            if (show && BrandCombo.ItemsSource == null)
-                InitManual();
-
-            _manualMode = show;
-            ManualPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-
-            // В ручном режиме создавать можно всегда — проверку имени сделает сборщик.
-            if (show)
-                BuildButton.IsEnabled = true;
-            else
-                BuildButton.IsEnabled = _resolved != null;
-        }
-
         /// <summary>Переносит загруженный заказ в поля ручного ввода — чтобы поправить и создать.</summary>
         private void FillManualFrom(ResolvedDesign r)
         {
@@ -274,6 +258,8 @@ namespace CupsForge
             _manualLoading = false;
 
             ManualNameBox.Text = r.DesignCode;
+            _manualNameFilled = !string.IsNullOrWhiteSpace(ManualNameBox.Text);
+            RefreshBuildAvailability();
         }
 
         private static void SelectCombo(ComboBox combo, string? id)

@@ -457,9 +457,16 @@ namespace CupsCore
             _draft.IllustratorExe = (IllustratorCombo.SelectedItem as IllustratorChoice)?.Value
                                     ?? MachineProfile.AutoDetect;
 
+            // Сохраняем не клон целиком, а только свои поля поверх живого профиля:
+            // пока окно было открыто, программа могла записать туда что-то своё
+            // (например, согласие на автозагрузку шаблонов), и запись клона
+            // откатила бы это назад.
+            MachineProfile live = MachineProfile.Current;
+            _draft.ApplyEditableTo(live);
+
             try
             {
-                _draft.Save();
+                live.Save();
             }
             catch (Exception ex)
             {
@@ -467,7 +474,6 @@ namespace CupsCore
                 return;
             }
 
-            MachineProfile.Set(_draft);
             Paths.ResetIllustratorCache();
 
             DialogResult = true;

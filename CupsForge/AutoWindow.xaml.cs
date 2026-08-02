@@ -134,7 +134,7 @@ namespace CupsForge
             string auth = _config.Bitrix.ResolveAuthHeader();
             if (string.IsNullOrEmpty(auth))
             {
-                Log("Не задан доступ к Bitrix. Откройте настройки и укажите логин и пароль.");
+                Log(BitrixAccess.NotConfiguredMessage);
                 return;
             }
 

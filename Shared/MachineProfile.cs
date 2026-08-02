@@ -270,6 +270,30 @@ namespace CupsCore
         }
 
         /// <summary>
+        /// Переносит в <paramref name="target"/> только то, чем распоряжается окно
+        /// настроек. Остальное остаётся как есть.
+        ///
+        /// Окно правит копию, снятую при открытии, — так «Отмена» действительно
+        /// ничего не меняет. Но сохранять эту копию целиком нельзя: пока окно
+        /// открыто, программа могла записать в профиль что-то своё, и сохранение
+        /// откатывало это назад. Пример из жизни: загрузка шаблонов ставит
+        /// autoSyncTemplates, дизайнер в это время жмёт «Сохранить» — и на
+        /// следующем запуске его снова спрашивают, качать ли сотни мегабайт.
+        /// </summary>
+        public void ApplyEditableTo(MachineProfile target)
+        {
+            target.Roots = new Dictionary<string, string>(Roots, StringComparer.OrdinalIgnoreCase);
+            target.Mode = Mode;
+            target.IllustratorExe = IllustratorExe;
+            target.Bitrix = new BitrixAccess
+            {
+                AuthorizationHeader = Bitrix.AuthorizationHeader,
+                Login = Bitrix.Login,
+                Password = Bitrix.Password
+            };
+        }
+
+        /// <summary>
         /// Сохраняет профиль. Пишем во временный файл и подменяем готовый:
         /// оборванная посреди записи запись оставила бы обрезанный JSON,
         /// а это потеря всех настроек рабочего места.
@@ -390,6 +414,19 @@ namespace CupsCore
     /// <summary>Учётные данные Bitrix, хранящиеся в профиле пользователя, а не в репозитории.</summary>
     public sealed class BitrixAccess
     {
+        /// <summary>
+        /// Что сказать, когда доступа нет.
+        ///
+        /// Живёт рядом с самим доступом, а не в окне: раньше текст ссылался на
+        /// appsettings.json, которого на новой машине не существует, потом —
+        /// на «логин и пароль», которых в настройках тоже нет (окно принимает
+        /// готовый ключ и логин с паролем намеренно затирает). Человека дважды
+        /// посылали искать поле, которого нет.
+        /// </summary>
+        public const string NotConfiguredMessage =
+            "Не задан доступ к Bitrix. Откройте настройки (шестерёнка) и вставьте " +
+            "ключ доступа в разделе «ДОСТУП К BITRIX». Ручной ввод работает и без него.";
+
         [JsonPropertyName("authorizationHeader")]
         public string AuthorizationHeader { get; set; } = "";
 

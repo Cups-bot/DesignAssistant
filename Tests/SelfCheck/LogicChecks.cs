@@ -562,6 +562,40 @@ public static class LogicChecks
         check.True("пустой доступ настроенным не считается",
             !new MachineProfile().Bitrix.IsConfigured);
 
+        // Сообщение об отсутствии доступа обязано вести туда, где поле есть.
+        // Оно уже дважды вело не туда: сперва в appsettings.json, которого на
+        // новой машине нет, потом в «логин и пароль», которых нет в настройках.
+        string noAccess = BitrixAccess.NotConfiguredMessage;
+        check.True("отказ по Bitrix не зовёт в appsettings.json",
+            !noAccess.Contains("appsettings", StringComparison.OrdinalIgnoreCase));
+        check.True("отказ по Bitrix не зовёт вводить пароль",
+            !noAccess.Contains("парол", StringComparison.OrdinalIgnoreCase));
+        check.True("отказ по Bitrix называет поле, которое есть в настройках",
+            noAccess.Contains("ключ", StringComparison.OrdinalIgnoreCase));
+
+        // Окно настроек правит копию, снятую при открытии, — иначе «Отмена» не
+        // работала бы. Но сохранять копию ЦЕЛИКОМ нельзя: пока окно открыто,
+        // программа могла записать в профиль своё, и запись клона откатывала это.
+        var live = MachineProfile.FromStakanyRoot(@"D:\Work\STAKANY");
+        var draft = live.Clone();
+        draft.Roots[MachineProfile.Root.Templates] = @"E:\Новое\_Templates";
+        draft.IllustratorExe = @"C:\AI\Illustrator.exe";
+
+        // Пока окно было открыто, программа согласилась качать шаблоны сама
+        // и запомнила состояние панели.
+        live.AutoSyncTemplates = true;
+        live.SpecPanelExpanded = false;
+
+        draft.ApplyEditableTo(live);
+        check.Equal("сохранение настроек переносит правки",
+            live.Roots[MachineProfile.Root.Templates], @"E:\Новое\_Templates");
+        check.Equal("сохранение настроек переносит Illustrator",
+            live.IllustratorExe, @"C:\AI\Illustrator.exe");
+        check.True("сохранение настроек не откатывает согласие на шаблоны",
+            live.AutoSyncTemplates);
+        check.True("сохранение настроек не откатывает состояние панели",
+            !live.SpecPanelExpanded);
+
         // Устаревший путь к Illustrator не выдаётся за рабочий.
         string ghost = Path.Combine(sandbox, "нет", "Illustrator.exe");
         string? resolved = IllustratorLocator.Resolve(ghost);

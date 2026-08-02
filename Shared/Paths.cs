@@ -16,38 +16,61 @@ namespace CupsCore
     {
         // ---------- Illustrator ----------
 
-        /// <summary>Текст для журнала, когда Illustrator не найден ни одним способом.</summary>
+        /// <summary>Текст для журнала, когда причина неизвестна (запасной вариант).</summary>
         public const string IllustratorNotFoundMessage =
             "Illustrator не найден на этой машине. Укажите путь к Illustrator.exe в настройках.";
 
         private static string? _illustratorCache;
+        private static string? _illustratorProblem;
         private static bool _illustratorResolved;
+
+        private static void ResolveIllustrator()
+        {
+            if (_illustratorResolved)
+                return;
+
+            IllustratorLocator.TryResolve(MachineProfile.Current.IllustratorExe,
+                                          out _illustratorCache, out _illustratorProblem);
+            _illustratorResolved = true;
+        }
 
         /// <summary>
         /// Путь к Illustrator.exe: из профиля либо найденный автоматически.
-        /// Пустая строка — не найден (проверяйте <see cref="IllustratorFound"/>,
+        /// Пустая строка — запускать нечего (проверяйте <see cref="IllustratorFound"/>,
         /// исключение здесь не бросается, чтобы не ронять создание проекта).
         /// </summary>
         public static string IllustratorExe
         {
             get
             {
-                if (!_illustratorResolved)
-                {
-                    _illustratorCache = IllustratorLocator.Resolve(MachineProfile.Current.IllustratorExe);
-                    _illustratorResolved = true;
-                }
+                ResolveIllustrator();
                 return _illustratorCache ?? "";
             }
         }
 
         public static bool IllustratorFound => !string.IsNullOrEmpty(IllustratorExe);
 
+        /// <summary>
+        /// Почему Illustrator недоступен — готовая фраза для журнала. Общий текст
+        /// «не найден» не годится: причины разные (не нашли вовсе / пропал именно
+        /// выбранный в настройках), и чинятся они по-разному.
+        /// null — всё в порядке.
+        /// </summary>
+        public static string? IllustratorProblem
+        {
+            get
+            {
+                ResolveIllustrator();
+                return _illustratorProblem;
+            }
+        }
+
         /// <summary>Сбросить кэш поиска (после смены пути в настройках).</summary>
         public static void ResetIllustratorCache()
         {
             _illustratorResolved = false;
             _illustratorCache = null;
+            _illustratorProblem = null;
         }
 
         /// <summary>JSX-скрипт запуска; путь берётся из профиля и разворачивается.</summary>

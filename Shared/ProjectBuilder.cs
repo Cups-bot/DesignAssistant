@@ -11,6 +11,14 @@ namespace CupsCore
         public bool AlreadyExisted { get; set; }
         public string ProjectPath { get; set; } = "";
         public string? AiFile { get; set; }
+
+        /// <summary>
+        /// Дошло ли дело до запуска Illustrator. Нужно и интерфейсу (сказать
+        /// «Illustrator открывает макет» только когда это правда), и самопроверке:
+        /// прогон не имеет права открывать Illustrator на машине разработчика.
+        /// </summary>
+        public bool IllustratorLaunched { get; set; }
+
         public List<string> Log { get; } = new();
     }
 
@@ -100,7 +108,7 @@ namespace CupsCore
                     if (Paths.IllustratorFound)
                         TryStart(Paths.IllustratorExe, $"/launch \"{existingAi}\"", Log);
                     else
-                        Log(Paths.IllustratorNotFoundMessage);
+                        Log(Paths.IllustratorProblem ?? Paths.IllustratorNotFoundMessage);
                 }
                 return res;
             }
@@ -182,7 +190,7 @@ namespace CupsCore
             // папка и args.txt на месте, файл можно открыть руками.
             if (!Paths.IllustratorFound)
             {
-                Log(Paths.IllustratorNotFoundMessage);
+                Log(Paths.IllustratorProblem ?? Paths.IllustratorNotFoundMessage);
                 return res;
             }
 
@@ -192,6 +200,7 @@ namespace CupsCore
                 var proc = Process.Start(exe, $"/launch \"{targetFile}\"");
                 proc?.WaitForInputIdle(5000);
                 Process.Start(exe, $"/run \"{Paths.JsxScriptPath}\"");
+                res.IllustratorLaunched = true;
                 Log("Illustrator запущен, скрипт выполнен.");
             }
             catch (ConfigurationException ex)

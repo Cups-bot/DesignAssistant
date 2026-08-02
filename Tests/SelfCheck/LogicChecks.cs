@@ -315,6 +315,13 @@ public static class LogicChecks
         Paths.ResetIllustratorCache();
         CatalogService.Reload();
 
+        // Прогон не имеет права трогать Illustrator на машине разработчика.
+        // Раньше указанный выше несуществующий путь молча заменялся найденным
+        // автопоиском, и самопроверка открывала настоящий Illustrator с файлом-
+        // заглушкой из песочницы. Он показывал «ID: -54» и ждал нажатия «ОК» —
+        // прогон стоял, пока человек не подойдёт к чужому окну.
+        check.True("настоящий Illustrator в песочнице не подбирается", !Paths.IllustratorFound);
+
         CreateFakeTemplates();
 
         void Build(string what, BuildRequest request, string expectedFolder, params string[] expectedArgs)
@@ -325,6 +332,10 @@ public static class LogicChecks
                 check.Fail($"{what}: проект не создан — {string.Join("; ", r.Log)}");
                 return;
             }
+
+            // Прямое доказательство, что чужой Illustrator не трогали: косвенной
+            // проверки «путь не подобрался» мало — запуск идёт другой веткой.
+            check.True(what + " → Illustrator не запускался", !r.IllustratorLaunched);
 
             check.Equal(what + " → имя папки", Path.GetFileName(r.ProjectPath), expectedFolder);
             check.True(what + " → .ai на месте",
@@ -531,6 +542,20 @@ public static class LogicChecks
         string ghost = Path.Combine(sandbox, "нет", "Illustrator.exe");
         string? resolved = IllustratorLocator.Resolve(ghost);
         check.True("несуществующий путь к Illustrator отбрасывается", resolved != ghost);
+
+        // ...и не подменяется другой установкой молча. Дизайнер выбирает версию
+        // не от скуки: под неё написан JSX-скрипт. Запустить вместо 2022 найденный
+        // рядом 2025 — это испортить макет и не сказать об этом ни слова.
+        // Прежняя проверка выше этого не ловила: она сравнивала с самим путём,
+        // а подмена как раз даёт «что-то другое» и выглядела успехом.
+        check.True("исчезнувший Illustrator не подменяется другим молча", resolved == null);
+
+        // Отказ обязан объяснять себя и вести в настройки: «не удалось запустить»
+        // без адреса — это ровно та невнятность, из-за которой баг завели.
+        bool ok = IllustratorLocator.TryResolve(ghost, out _, out string? why);
+        check.True("отказ назван словами", !ok && !string.IsNullOrWhiteSpace(why));
+        check.True("в отказе есть пропавший путь", (why ?? "").Contains(ghost, StringComparison.Ordinal));
+        check.True("отказ ведёт в настройки", (why ?? "").Contains("настройк", StringComparison.OrdinalIgnoreCase));
 
         // Обновление отказывается трогать копию вне папки установки.
         check.True("запуск из папки установки распознаётся",

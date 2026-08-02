@@ -13,3 +13,6 @@ Thumbs.db
 # Доступ к Bitrix — это учётные данные к API, открытому в интернет.
 # В репозитории лежит только образец: appsettings.example.json.
 CupsForge/appsettings.json
+
+# Локальная папка выпусков, если сетевой диск недоступен
+release-local/

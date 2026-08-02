@@ -200,6 +200,66 @@ public static class UiChecks
             check.True($"{overlay}: клики не съедаются полосой заголовка", clickable);
         }
 
+        // Выдвижная панель: язычок у края окна. Настройка живёт в профиле,
+        // по умолчанию включена — край окна поймать мышью проще, чем
+        // шестерёнку в 28 пикселей.
+        check.True("язычок выдвижной панели включён по умолчанию",
+                   new MachineProfile().SideDrawer);
+        // Мало проверить Visibility: язычок уже один раз оказался «видимым»,
+        // но вытолкнутым за край окна отрицательным отступом — на экране его
+        // не было. Спрашиваем настоящие координаты внутри окна.
+        if (w.FindName("DrawerTabButton") is Button drawerTab)
+        {
+            w.UpdateLayout();
+            var box = drawerTab.TransformToAncestor(w).TransformBounds(
+                new Rect(drawerTab.RenderSize));
+            bool onScreen = drawerTab.Visibility == Visibility.Visible &&
+                            box.Width > 0 && box.Height > 0 &&
+                            box.Left >= 0 && box.Right <= w.ActualWidth + 0.5;
+
+            check.True(onScreen
+                    ? "язычок показан и лежит внутри окна"
+                    : $"язычок показан и лежит внутри окна — он на {box.Left:0}..{box.Right:0} при ширине {w.ActualWidth:0}",
+                onScreen);
+        }
+
+        if (w.FindName("DrawerTabButton") is Button tab)
+        {
+            tab.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            check.True("язычок открывает панель настроек", Visible(w, "SettingsOverlay"));
+            SameSize(check, w, "выдвижная панель", width, height);
+            Snapshot(w, "8-выдвижная-панель");
+
+            if (w.FindName("SettingsHost") is ContentControl host &&
+                host.Content is SettingsPanel panel &&
+                panel.FindName("CancelButton") is Button close)
+            {
+                close.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            }
+        }
+
+        // Выключенная настройка убирает язычок, но шестерёнка остаётся.
+        var saved = MachineProfile.Current;
+        try
+        {
+            var off = saved.Clone();
+            off.SideDrawer = false;
+            MachineProfile.Set(off);
+
+            var other = new AutoWindow();
+            try
+            {
+                other.Show();
+                other.UpdateLayout();
+                check.True("выключённый язычок не показывается",
+                           (other.FindName("DrawerTabButton") as UIElement)?.Visibility != Visibility.Visible);
+                check.True("шестерёнка остаётся доступной",
+                           (other.FindName("SettingsButton") as Button)?.IsEnabled == true);
+            }
+            finally { other.Close(); }
+        }
+        finally { MachineProfile.Set(saved); }
+
         FixOneField(check, w, width, height);
 
         // Настройки — панель справа ПОВЕРХ сцены, не второе окно.

@@ -55,6 +55,7 @@ namespace CupsCore
             LoadCatalogInfo();
             LoadBitrix();
 
+            DrawerSwitch.IsChecked = _draft.SideDrawer;
             OfficeRadio.IsChecked = !IsRemote(_draft.Mode);
             RemoteRadio.IsChecked = IsRemote(_draft.Mode);
             BaseBox.Text = GuessStakanyRoot();
@@ -451,6 +452,7 @@ namespace CupsCore
             _draft.Bitrix.Password = "";
 
             _draft.Mode = RemoteRadio.IsChecked == true ? "remote" : "office";
+            _draft.SideDrawer = DrawerSwitch.IsChecked == true;
             _draft.IllustratorExe = (IllustratorCombo.SelectedItem as IllustratorChoice)?.Value
                                     ?? MachineProfile.AutoDetect;
 

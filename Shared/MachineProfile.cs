@@ -159,6 +159,17 @@ namespace CupsCore
         [JsonPropertyName("specPanelExpanded")]
         public bool SpecPanelExpanded { get; set; } = true;
 
+        /// <summary>
+        /// Показывать язычок выдвижной панели у правого края окна.
+        ///
+        /// Включено по умолчанию: край экрана — самая лёгкая мишень для мыши,
+        /// в него нельзя промахнуться, тогда как шестерёнка в углу это 28
+        /// пикселей. Кому язычок мешает — выключает, настройки остаются
+        /// доступны шестерёнкой.
+        /// </summary>
+        [JsonPropertyName("sideDrawer")]
+        public bool SideDrawer { get; set; } = true;
+
         // ---------- расположение файла ----------
 
         private static string? _storageOverride;
@@ -257,6 +268,7 @@ namespace CupsCore
                 DistributionAssets = DistributionAssets,
                 AutoSyncTemplates = AutoSyncTemplates,
                 SpecPanelExpanded = SpecPanelExpanded,
+                SideDrawer = SideDrawer,
                 Bitrix = new BitrixAccess
                 {
                     AuthorizationHeader = Bitrix.AuthorizationHeader,
@@ -285,6 +297,7 @@ namespace CupsCore
             target.Roots = new Dictionary<string, string>(Roots, StringComparer.OrdinalIgnoreCase);
             target.Mode = Mode;
             target.IllustratorExe = IllustratorExe;
+            target.SideDrawer = SideDrawer;
             target.Bitrix = new BitrixAccess
             {
                 AuthorizationHeader = Bitrix.AuthorizationHeader,

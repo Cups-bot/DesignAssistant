@@ -60,6 +60,22 @@
                             </Grid>
                         </Border>
 
+                        <!-- Выдвижная панель -->
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0">
+                                <TextBlock Style="{StaticResource Value}" FontSize="11.5"
+                                           Text="Язычок настроек у края"/>
+                                <TextBlock Style="{StaticResource Body}" FontSize="10"
+                                           Text="Панель выезжает справа. Шестерёнка работает всегда."/>
+                            </StackPanel>
+                            <ToggleButton x:Name="DrawerSwitch" Grid.Column="1"
+                                          Style="{StaticResource Switch}" VerticalAlignment="Center"/>
+                        </Grid>
+
                         <!-- Папка STAKANY -->
                         <TextBlock Style="{StaticResource Label}" Text="ПАПКА STAKANY" Margin="0,0,0,6"/>
                         <Grid>

@@ -40,6 +40,7 @@ namespace CupsForge
             // Углы скругляет композитор Windows. Через прозрачность было бы
             // проще, но она отключает ClearType, и весь текст становится мягче.
             WindowRounding.Attach(this);
+            ApplyDrawerSetting();
 
             Loaded += (_, _) =>
             {
@@ -257,6 +258,7 @@ namespace CupsForge
                     ApplySetupState(!SettingsPanel.NeedsWizard(out _));
                     ReportCatalog();
                     CloseSettings();
+                    ApplyDrawerSetting();
                 };
 
                 // Закрыть панель можно ВСЕГДА — и крестиком, и «Отменой»,
@@ -286,9 +288,17 @@ namespace CupsForge
                 });
         }
 
+        /// <summary>
+        /// Показывать ли язычок выдвижной панели. Настройка живёт в профиле
+        /// машины: у каждого свои привычки, а программа одна на всех.
+        /// </summary>
+        private void ApplyDrawerSetting() =>
+            DrawerTabButton.Visibility = Visible(MachineProfile.Current.SideDrawer);
+
         private void CloseSettings()
         {
             SettingsOverlay.Visibility = Visibility.Collapsed;
+            ApplyDrawerSetting();
 
             // Папки могли появиться и без «Сохранить» — кнопкой «Создать папки».
             // Пересчитываем состояние, иначе запрет держится на устаревшем ответе.

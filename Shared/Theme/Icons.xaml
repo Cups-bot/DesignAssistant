@@ -69,6 +69,8 @@
     <Geometry x:Key="I.CheckCircle">M3,12 A9,9 0 1 1 21,12 A9,9 0 1 1 3,12 M8.5,12.2 l2.5,2.5 4.8,-5</Geometry>
     <!-- chevron-down.svg -->
     <Geometry x:Key="I.ChevronDown">M6,9 l6,6 6,-6</Geometry>
+    <!-- chevron-left.svg -->
+    <Geometry x:Key="I.ChevronLeft">M15,6 l-6,6 6,6</Geometry>
     <!-- chevron-right.svg -->
     <Geometry x:Key="I.ChevronRight">M9,6 l6,6 -6,6</Geometry>
     <!-- chevron-up.svg -->

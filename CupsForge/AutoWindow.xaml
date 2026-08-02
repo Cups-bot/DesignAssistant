@@ -475,6 +475,17 @@
                 </Grid>
             </Grid>
 
+            <!-- ═══════════ ЯЗЫЧОК ВЫДВИЖНОЙ ПАНЕЛИ ═══════════ -->
+            <!-- Лежит поверх сцены, но НИЖЕ наложенных панелей: когда панель
+                 открыта, тянуть за язычок нечего. -->
+            <Button x:Name="DrawerTabButton" Grid.Row="2" Style="{StaticResource DrawerTab}"
+                    HorizontalAlignment="Right" VerticalAlignment="Center"
+                    Panel.ZIndex="5"
+                    ToolTip="Настройки рабочего места" Click="SettingsButton_Click">
+                <Path Style="{StaticResource Icon}" Data="{StaticResource I.ChevronLeft}"
+                      Width="11" Height="11" Stretch="Uniform" StrokeThickness="3"/>
+            </Button>
+
             <!-- ═══════════ ПОДВАЛ ═══════════ -->
             <Button x:Name="JournalToggle" Grid.Row="3" Style="{StaticResource GhostBar}"
                     Height="{StaticResource Size.Footer}" Padding="14,0"

@@ -1,8 +1,5 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- CupsForge · иконка «arrow». Поле 24x24, штрих 1.7, скруглённые концы.
-     Правьте в любом редакторе. После правки: .\sync-icons.cmd -->
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
-     fill="none" stroke="currentColor" stroke-width="1.7"
-     stroke-linecap="round" stroke-linejoin="round">
-  <path d="M5,12 h13 M12,5 l7,7 -7,7"/>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="_Слой_1" data-name="Слой_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 17 13">
+  <!-- Generator: Adobe Illustrator 30.6.0, SVG Export Plug-In . SVG Version: 2.1.4 Build 109)  -->
+  <path d="M10.5,13c-.13,0-.26-.05-.35-.15-.2-.2-.2-.51,0-.71l5.15-5.15H.5c-.28,0-.5-.22-.5-.5s.22-.5.5-.5h14.79L10.15.85c-.2-.2-.2-.51,0-.71s.51-.2.71,0l6,6s0,0,.01.01h0s0,0,0,0h0s.08.1.1.15c.02.05.04.11.04.18h0v.03h0c0,.06-.02.12-.04.18-.02.05-.05.11-.1.15h0s0,0,0,0h0s0,0-.01.01l-6,6c-.1.1-.23.15-.35.15Z"/>
 </svg>

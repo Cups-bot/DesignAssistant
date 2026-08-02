@@ -162,6 +162,16 @@
                         <TextBlock x:Name="BitrixHint" Style="{StaticResource Body}"
                                    FontSize="10.5" Margin="2,6,0,14"/>
 
+                        <!-- Журнал на диск -->
+                        <TextBlock Style="{StaticResource Label}" Text="ДИАГНОСТИКА" Margin="0,0,0,6"/>
+                        <TextBlock x:Name="LogInfo" Style="{StaticResource Body}"
+                                   FontSize="10.5" Margin="0,0,0,6"/>
+                        <Button x:Name="OpenLogsButton" Style="{StaticResource Outline}"
+                                HorizontalAlignment="Stretch" Margin="0,0,0,14"
+                                Content="Показать файлы журнала"
+                                ToolTip="Открыть папку с журналом — файл можно переслать"
+                                Click="OpenLogs_Click"/>
+
                         <!-- Каталог -->
                         <TextBlock Style="{StaticResource Label}" Text="КАТАЛОГ ПРОДУКТОВ" Margin="0,0,0,6"/>
                         <TextBlock x:Name="CatalogInfo" Style="{StaticResource Value}" FontSize="11.5"

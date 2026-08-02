@@ -19,6 +19,7 @@ public static class LogicChecks
         CatalogService.Reload();
 
         Layers(check);
+        Diagnostics(check);
         Catalog(check);
         OutputRoots(check);
         Templates(check);
@@ -72,6 +73,62 @@ public static class LogicChecks
         check.True("приложение ссылается на ядро",
             typeof(CupsForge.AutoWindow).Assembly.GetReferencedAssemblies()
                 .Any(a => a.Name == "CupsForge.Core"));
+    }
+
+    /// <summary>
+    /// Журнал на диск. Главное здесь не запись, а то, ЧЕГО в файле быть
+    /// не должно: ключ доступа к Bitrix открывает API в интернете, а файл
+    /// дизайнер отправит по почте не задумываясь.
+    /// </summary>
+    private static void Diagnostics(Checker check)
+    {
+        check.Section("Журнал на диск");
+
+        var profile = MachineProfile.CreateOfficeDefault();
+        profile.Bitrix.AuthorizationHeader = "c3VwZXItc2VjcmV0LWtleS0xMjM0NQ==";
+        MachineProfile.Set(profile);
+
+        // Заголовок авторизации в любом виде — самый частый способ утечки:
+        // он попадает в сообщения об ошибках HTTP сам собой.
+        string scrubbed = DiagnosticLog.Scrub(
+            "Сбой запроса: Authorization: Basic c3VwZXItc2VjcmV0LWtleS0xMjM0NQ== отклонён");
+        check.True("ключ из заголовка вычищен", !scrubbed.Contains("c3VwZXIt"));
+        check.True("на его месте видно, что он был", scrubbed.Contains("ключ скрыт"));
+        check.True("остальной текст цел", scrubbed.Contains("Сбой запроса"));
+
+        // И сам ключ, если попал в строку без заголовка.
+        string bare = DiagnosticLog.Scrub("ключ = c3VwZXItc2VjcmV0LWtleS0xMjM0NQ==");
+        check.True("голый ключ тоже вычищен", !bare.Contains("c3VwZXIt"));
+
+        check.True("Bearer вычищается так же",
+            !DiagnosticLog.Scrub("Bearer abcdefghijklmnop").Contains("abcdefghij"));
+
+        // Обычный текст трогать нельзя: журнал, съевший половину сообщений,
+        // хуже журнала без вычистки.
+        const string plain = "Каталог: версия 2 от 2026-07-28 — файл рядом с программой";
+        check.Equal("обычный текст не тронут", DiagnosticLog.Scrub(plain), plain);
+
+        // Пустой ключ не должен превращать всё подряд в «скрыт».
+        var empty = MachineProfile.CreateOfficeDefault();
+        MachineProfile.Set(empty);
+        check.Equal("без ключа вычищать нечего", DiagnosticLog.Scrub(plain), plain);
+
+        // Запись доходит до диска и попадает в песочницу, а не в рабочий
+        // профиль: хранение на время прогона уведено, и журнал обязан ехать
+        // вместе с ним.
+        DiagnosticLog.Write("проверка записи журнала");
+        bool wrote = File.Exists(DiagnosticLog.TodayFile);
+        check.True("строка доходит до файла", wrote);
+        if (wrote)
+        {
+            string written = File.ReadAllText(DiagnosticLog.TodayFile);
+            check.True("в файле есть время и текст",
+                written.Contains("проверка записи журнала") && written.Contains(":"));
+            check.True("файл журнала лежит в песочнице, а не в профиле машины",
+                DiagnosticLog.DirectoryPath.Contains("selfcheck", StringComparison.OrdinalIgnoreCase));
+        }
+
+        MachineProfile.Set(MachineProfile.CreateOfficeDefault());
     }
 
     private static void Catalog(Checker check)

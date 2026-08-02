@@ -55,6 +55,7 @@ namespace CupsForge
             LoadIllustrator();
             LoadCatalogInfo();
             LoadBitrix();
+            LoadLogInfo();
 
             DrawerSwitch.IsChecked = _draft.SideDrawer;
             OfficeRadio.IsChecked = !IsRemote(_draft.Mode);
@@ -93,6 +94,46 @@ namespace CupsForge
                           "по стандартным путям нет. Укажите, где они лежат здесь.";
 
             return true;
+        }
+
+        /// <summary>
+        /// Сколько журнала накопилось. Нужно, чтобы человек понимал, что
+        /// именно он отправит: «файлов 3, 240 КБ» вместо «где-то там лежит».
+        /// </summary>
+        private void LoadLogInfo()
+        {
+            var files = DiagnosticLog.Files();
+            if (files.Count == 0)
+            {
+                LogInfo.Text = "Журнал пока пуст.";
+                return;
+            }
+
+            long bytes = 0;
+            foreach (string f in files)
+            {
+                try { bytes += new FileInfo(f).Length; } catch { }
+            }
+
+            string size = bytes >= 1024 * 1024
+                ? $"{bytes / 1024.0 / 1024.0:0.#} МБ"
+                : $"{bytes / 1024.0:0} КБ";
+
+            LogInfo.Text = $"Файлов: {files.Count}, {size}. Хранятся две недели. " +
+                           "Ключ доступа в них не попадает.";
+        }
+
+        private void OpenLogs_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                System.IO.Directory.CreateDirectory(DiagnosticLog.DirectoryPath);
+                System.Diagnostics.Process.Start("explorer.exe", DiagnosticLog.DirectoryPath);
+            }
+            catch (Exception ex)
+            {
+                ShowMessage("Не удалось открыть папку журнала: " + ex.Message);
+            }
         }
 
         /// <summary>Показать подсказку сверху — например, зачем панель открылась сама.</summary>

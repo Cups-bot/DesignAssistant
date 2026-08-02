@@ -30,6 +30,7 @@ namespace CupsForge
         protected override void OnClosed(EventArgs e)
         {
             _closed = true;
+            CloseDock();
             base.OnClosed(e);
         }
 

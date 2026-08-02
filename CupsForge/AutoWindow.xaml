@@ -475,14 +475,16 @@
                 </Grid>
             </Grid>
 
-            <!-- ═══════════ ЯЗЫЧОК ВЫДВИЖНОЙ ПАНЕЛИ ═══════════ -->
-            <!-- Лежит поверх сцены, но НИЖЕ наложенных панелей: когда панель
-                 открыта, тянуть за язычок нечего. -->
+            <!-- ═══════════ ЯЗЫЧОК СВОРАЧИВАНИЯ ═══════════ -->
+            <!-- Убирает окно за правый край экрана. Там его подхватывает
+                 отдельный язычок поверх всех окон (DockTab) и возвращает
+                 обратно по щелчку. Стрелка смотрит наружу — туда, куда уедет
+                 окно. Лежит поверх сцены, но НИЖЕ наложенных панелей. -->
             <Button x:Name="DrawerTabButton" Grid.Row="2" Style="{StaticResource DrawerTab}"
                     HorizontalAlignment="Right" VerticalAlignment="Center"
                     Panel.ZIndex="5"
-                    ToolTip="Настройки рабочего места" Click="SettingsButton_Click">
-                <Path Style="{StaticResource Icon}" Data="{StaticResource I.ChevronLeft}"
+                    ToolTip="Свернуть к краю экрана" Click="Collapse_Click">
+                <Path Style="{StaticResource Icon}" Data="{StaticResource I.ChevronRight}"
                       Width="11" Height="11" Stretch="Uniform" StrokeThickness="3"/>
             </Button>
 

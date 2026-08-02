@@ -68,9 +68,9 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0">
                                 <TextBlock Style="{StaticResource Value}" FontSize="11.5"
-                                           Text="Язычок настроек у края"/>
+                                           Text="Сворачивать к краю экрана"/>
                                 <TextBlock Style="{StaticResource Body}" FontSize="10"
-                                           Text="Панель выезжает справа. Шестерёнка работает всегда."/>
+                                           Text="Окно уезжает вправо, у края остаётся язычок поверх всех окон."/>
                             </StackPanel>
                             <ToggleButton x:Name="DrawerSwitch" Grid.Column="1"
                                           Style="{StaticResource Switch}" VerticalAlignment="Center"/>

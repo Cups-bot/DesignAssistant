@@ -200,49 +200,65 @@ public static class UiChecks
             check.True($"{overlay}: клики не съедаются полосой заголовка", clickable);
         }
 
-        // Выдвижная панель: язычок у края окна. Настройка живёт в профиле,
-        // по умолчанию включена — край окна поймать мышью проще, чем
-        // шестерёнку в 28 пикселей.
-        check.True("язычок выдвижной панели включён по умолчанию",
+        // Сворачивание к краю экрана: окно уезжает вправо и прячется целиком,
+        // у края остаётся язычок ПОВЕРХ ВСЕХ ОКОН. Не то же, что сворачивание
+        // в панель задач: там программу надо искать среди двадцати значков,
+        // здесь она всегда на одном месте и в одном щелчке.
+        check.True("сворачивание к краю включено по умолчанию",
                    new MachineProfile().SideDrawer);
-        // Мало проверить Visibility: язычок уже один раз оказался «видимым»,
-        // но вытолкнутым за край окна отрицательным отступом — на экране его
-        // не было. Спрашиваем настоящие координаты внутри окна.
-        if (w.FindName("DrawerTabButton") is Button drawerTab)
+
+        if (w.FindName("DrawerTabButton") is Button collapseTab)
         {
             w.UpdateLayout();
-            var box = drawerTab.TransformToAncestor(w).TransformBounds(
-                new Rect(drawerTab.RenderSize));
-            bool onScreen = drawerTab.Visibility == Visibility.Visible &&
-                            box.Width > 0 && box.Height > 0 &&
-                            box.Left >= 0 && box.Right <= w.ActualWidth + 0.5;
+            var box = collapseTab.TransformToAncestor(w).TransformBounds(
+                new Rect(collapseTab.RenderSize));
+            bool onScreen = collapseTab.Visibility == Visibility.Visible &&
+                            box.Width > 0 && box.Left >= 0 &&
+                            box.Right <= w.ActualWidth + 0.5;
 
             check.True(onScreen
-                    ? "язычок показан и лежит внутри окна"
-                    : $"язычок показан и лежит внутри окна — он на {box.Left:0}..{box.Right:0} при ширине {w.ActualWidth:0}",
+                    ? "язычок сворачивания внутри окна"
+                    : $"язычок сворачивания внутри окна — он на {box.Left:0}..{box.Right:0} при ширине {w.ActualWidth:0}",
                 onScreen);
-        }
 
-        if (w.FindName("DrawerTabButton") is Button tab)
-        {
-            tab.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-            check.True("язычок открывает панель настроек", Visible(w, "SettingsOverlay"));
-            SameSize(check, w, "выдвижная панель", width, height);
-            Snapshot(w, "8-выдвижная-панель");
+            // Рабочая область берётся у монитора, на котором окно, а не у
+            // главного: со вторым экраном язычок уезжал бы на чужой.
+            Rect work = ScreenEdge.WorkAreaFor(w);
+            check.True($"рабочая область экрана определена ({work.Width:0}x{work.Height:0})",
+                       work.Width > 100 && work.Height > 100);
 
-            if (w.FindName("SettingsHost") is ContentControl host &&
-                host.Content is SettingsPanel panel &&
-                panel.FindName("CancelButton") is Button close)
+            double leftBefore = w.Left;
+            collapseTab.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            Pump(w, TimeSpan.FromMilliseconds(500));
+
+            check.True("после сворачивания окно спрятано", !w.IsVisible);
+
+            // Спрятать окно мало: если язычок не появился, программа просто
+            // исчезла с экрана и вернуть её нечем.
+            var tab = Application.Current.Windows.OfType<DockTab>().FirstOrDefault();
+            check.True("язычок появился у края экрана", tab is { IsVisible: true });
+            check.True("язычок поверх всех окон", tab is { Topmost: true });
+            check.True("язычка нет в панели задач", tab is { ShowInTaskbar: false });
+            if (tab != null)
             {
-                close.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                check.True($"язычок прижат к правому краю (x={tab.Left:0}, край={work.Right:0})",
+                           Math.Abs(tab.Left + tab.Width - work.Right) < 2);
             }
+
+            w.ExpandFromEdge();
+            Pump(w, TimeSpan.FromMilliseconds(500));
+
+            check.True("язычок возвращает окно", w.IsVisible);
+            check.True("окно вернулось на прежнее место",
+                       Math.Abs(w.Left - leftBefore) < 2);
+            SameSize(check, w, "возврат из свёрнутого", width, height);
         }
 
-        // Выключенная настройка убирает язычок, но шестерёнка остаётся.
-        var saved = MachineProfile.Current;
+        // Выключенная настройка убирает язычок сворачивания.
+        var savedProfile = MachineProfile.Current;
         try
         {
-            var off = saved.Clone();
+            var off = savedProfile.Clone();
             off.SideDrawer = false;
             MachineProfile.Set(off);
 
@@ -251,14 +267,12 @@ public static class UiChecks
             {
                 other.Show();
                 other.UpdateLayout();
-                check.True("выключённый язычок не показывается",
+                check.True("выключённое сворачивание убирает язычок",
                            (other.FindName("DrawerTabButton") as UIElement)?.Visibility != Visibility.Visible);
-                check.True("шестерёнка остаётся доступной",
-                           (other.FindName("SettingsButton") as Button)?.IsEnabled == true);
             }
             finally { other.Close(); }
         }
-        finally { MachineProfile.Set(saved); }
+        finally { MachineProfile.Set(savedProfile); }
 
         FixOneField(check, w, width, height);
 

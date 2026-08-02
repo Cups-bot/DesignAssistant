@@ -118,13 +118,22 @@ namespace CupsCore
         public string CatalogPath { get; set; } = @"{templates}\catalog.json";
 
         /// <summary>
-        /// Папка раздачи новых версий. По умолчанию — соседняя с рабочей папкой
-        /// (Y:\STAKANY\..\Soft\CupsForge\release). На домашней машине такой папки
-        /// нет, и проверка просто ничего не находит.
-        /// Пустая строка — не проверять обновления вовсе.
+        /// Папка выпусков в офисе — ускорение по локальной сети.
+        /// Недоступна или пуста — не беда: программа возьмёт обновление
+        /// из интернета (<see cref="UpdateRepo"/>).
+        ///
+        /// НЕ зависит от папки STAKANY. Раньше здесь стояло
+        /// «{base}\..\Soft\CupsForge\release», и переезд рабочей папки молча
+        /// ломал канал обновлений: путь раскрывался в несуществующее место,
+        /// программа честно ничего не находила, а человек видел только то,
+        /// что версии перестали приходить. Так и случилось на живой машине.
         /// </summary>
         [JsonPropertyName("updateSource")]
-        public string UpdateSource { get; set; } = @"{base}\..\Soft\CupsForge\release";
+        public string UpdateSource { get; set; } = OfficeReleaseShare;
+
+        /// <summary>Папка выпусков рядом с офисной структурой: Y:\Soft\CupsForge\release.</summary>
+        public static string OfficeReleaseShare { get; } = Path.Combine(
+            Path.GetDirectoryName(OfficeStakanyRoot) ?? @"Y:\", "Soft", "CupsForge", "release");
 
         /// <summary>
         /// Опись раздачи — единственный адрес, по которому программа ходит в сеть

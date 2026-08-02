@@ -8,6 +8,22 @@ using Velopack.Sources;
 
 namespace CupsCore
 {
+    /// <summary>
+    /// Канал обновления и его состояние — для показа человеку.
+    ///
+    /// Программа молча пропускает недоступный канал: дома сетевого диска нет,
+    /// и это норма. Но из-за молчания «обновления не приходят» становится
+    /// невидимым, и разобраться можно только чтением кода.
+    /// </summary>
+    public sealed class UpdateChannel
+    {
+        public string Title { get; init; } = "";
+        public string Detail { get; init; } = "";
+
+        /// <summary>Канал доступен и будет проверен.</summary>
+        public bool Available { get; init; }
+    }
+
     /// <summary>Что нашлось на раздаче.</summary>
     public sealed class AppUpdateInfo
     {
@@ -94,18 +110,38 @@ namespace CupsCore
         /// Вынесено отдельно, чтобы порядок и состав можно было проверить
         /// прогоном: сама проверка обновлений требует настоящей раздачи.
         /// </summary>
-        public static IReadOnlyList<string> DescribeSources(MachineProfile profile)
+        public static IReadOnlyList<string> DescribeSources(MachineProfile profile) =>
+            Channels(profile).Where(c => c.Available).Select(c => $"{c.Title}: {c.Detail}").ToList();
+
+        /// <summary>
+        /// Все каналы с их состоянием, в порядке проверки. Показывается
+        /// в настройках: иначе «почему не обновляется» не выяснить вовсе.
+        /// </summary>
+        public static IReadOnlyList<UpdateChannel> Channels(MachineProfile profile)
         {
-            var names = new List<string>();
+            var list = new List<UpdateChannel>();
 
+            string configured = profile.UpdateSource ?? "";
             string? folder = ExpandFolder(profile);
-            if (folder != null)
-                names.Add("сетевой диск: " + folder);
+            if (!string.IsNullOrWhiteSpace(configured))
+            {
+                list.Add(new UpdateChannel
+                {
+                    Title = "сетевой диск",
+                    Detail = folder ?? $"{configured} — не найден",
+                    Available = folder != null
+                });
+            }
 
-            if (!string.IsNullOrWhiteSpace(profile.UpdateRepo))
-                names.Add("раздача: " + profile.UpdateRepo);
+            bool hasRepo = !string.IsNullOrWhiteSpace(profile.UpdateRepo);
+            list.Add(new UpdateChannel
+            {
+                Title = "раздача",
+                Detail = hasRepo ? profile.UpdateRepo : "выключена",
+                Available = hasRepo
+            });
 
-            return names;
+            return list;
         }
 
         /// <summary>

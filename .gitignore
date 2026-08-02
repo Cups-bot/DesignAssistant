@@ -14,5 +14,3 @@ Thumbs.db
 # В репозитории лежит только образец: appsettings.example.json.
 CupsForge/appsettings.json
 
-# Локальная папка выпусков, если сетевой диск недоступен
-release-local/

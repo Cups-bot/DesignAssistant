@@ -163,6 +163,34 @@
                         <TextBlock x:Name="BitrixHint" Style="{StaticResource Body}"
                                    FontSize="10.5" Margin="2,6,0,14"/>
 
+                        <!-- Каналы обновления -->
+                        <TextBlock Style="{StaticResource Label}" Text="ОБНОВЛЕНИЯ" Margin="0,0,0,6"/>
+                        <ItemsControl x:Name="ChannelList" Margin="0,0,0,4">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Path Grid.Column="0" Style="{StaticResource IconPlain}"
+                                              Data="{Binding Icon}" Stroke="{Binding Brush}"
+                                              app:IconBox.Size="13"
+                                              VerticalAlignment="Top" Margin="0,2,8,0"/>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Style="{StaticResource Value}" FontSize="11.5"
+                                                       Text="{Binding Title}"/>
+                                            <TextBlock Style="{StaticResource Mono}" FontSize="9.5"
+                                                       Foreground="#3E4A5C" Text="{Binding Detail}"
+                                                       ToolTip="{Binding Detail}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock x:Name="UpdateHint" Style="{StaticResource Body}"
+                                   FontSize="10" Margin="0,0,0,14"/>
+
                         <!-- Журнал на диск -->
                         <TextBlock Style="{StaticResource Label}" Text="ДИАГНОСТИКА" Margin="0,0,0,6"/>
                         <TextBlock x:Name="LogInfo" Style="{StaticResource Body}"

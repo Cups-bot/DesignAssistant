@@ -56,6 +56,7 @@ namespace CupsForge
             LoadCatalogInfo();
             LoadBitrix();
             LoadLogInfo();
+            LoadChannels();
 
             DrawerSwitch.IsChecked = _draft.SideDrawer;
             OfficeRadio.IsChecked = !IsRemote(_draft.Mode);
@@ -94,6 +95,35 @@ namespace CupsForge
                           "по стандартным путям нет. Укажите, где они лежат здесь.";
 
             return true;
+        }
+
+        /// <summary>
+        /// Каналы обновления и их состояние.
+        ///
+        /// Программа молча пропускает недоступный канал — дома сетевого диска
+        /// нет, и это норма. Но из-за молчания «обновления не приходят»
+        /// становилось невидимым: выяснить, куда именно она смотрит, можно было
+        /// только чтением кода.
+        /// </summary>
+        private void LoadChannels()
+        {
+            var rows = AppUpdates.Channels(MachineProfile.Current)
+                .Select(c => new
+                {
+                    c.Title,
+                    c.Detail,
+                    Icon = Ui.Icon(c.Available ? "I.CheckCircle" : "I.Warn"),
+                    Brush = Ui.Brush(c.Available ? "Ok" : "Dim")
+                })
+                .ToList();
+
+            ChannelList.ItemsSource = rows;
+
+            string? cannot = AppUpdates.Unavailable();
+            UpdateHint.Text = cannot
+                ?? (rows.Any(r => r.Brush == Ui.Brush("Ok"))
+                        ? "Проверяются по порядку при каждом запуске."
+                        : "Ни один канал не доступен — обновления не придут.");
         }
 
         /// <summary>

@@ -1,23 +1,26 @@
 ﻿# Выпуск новой версии CupsForge.
 #
-#   .\publish.ps1                        — собрать и выложить на Y:\Soft\CupsForge\release
-#   .\publish.ps1 -Notes "добавлены крышки"
-#   .\publish.ps1 -Destination D:\test   — то же в другую папку (проверить, не трогая рабочую)
-#   .\publish.ps1 -Destination D:\test -SkipDist
-#       — собрать «как для дизайнеров», никуда не отправляя. Это то, что нужно
-#         на домашней машине: сетевого диска нет, ключа GitHub нет, а посмотреть
-#         на готовый Setup.exe надо.
+#   .\publish.ps1                       — выпустить. Всё.
+#   .\publish.ps1 -Notes "новые иконки"
+#   .\publish.ps1 -Local D:\проба       — собрать к себе, никуда не отправляя
 #
-#   Чтобы просто ЗАПУСТИТЬ и посмотреть окно, выпуск не нужен вовсе:
-#       dotnet run --project CupsForge
+# Обычный выпуск НИЧЕГО НЕ ТРЕБУЕТ РУКАМИ: ни копировать файлы, ни выбирать
+# папку, ни поднимать версию. Запустили — и у всех, у кого программа стоит,
+# при следующем запуске появится полоска «Доступна версия».
 #
-# Прав администратора не требуется ни здесь, ни у дизайнеров: программа живёт
-# в профиле пользователя.
+# Раздача — публичный репозиторий GitHub. Он единственный достаёт до всех:
+# сетевой диск виден только в офисе, а интернет есть у каждого. Если диск
+# доступен, копия кладётся и туда — в офисе обновление пойдёт по локальной
+# сети, быстрее. Но это ускорение, а не условие: делать для него ничего
+# не нужно.
+#
+# Прав администратора не требуется ни здесь, ни у дизайнеров.
 
 param(
-    [string] $Destination = 'Y:\Soft\CupsForge\release',
     [string] $Notes = '',
-    [switch] $SkipDist
+    [string] $Local = '',
+    [string] $Repo = 'Cups-bot/CupsForge-public',
+    [string] $OfficeShare = 'Y:\Soft\CupsForge\release'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -26,12 +29,9 @@ $root = $PSScriptRoot
 # ─────────────────────────────────────────────────────────────────────────────
 # Версия
 # ─────────────────────────────────────────────────────────────────────────────
-# Старшая часть берётся из проекта (её меняют осознанно, когда меняется
-# сама программа), младшая — число коммитов. Забыть поднять версию невозможно:
-# любой коммит её двигает, и она всегда больше предыдущей.
-#
-# Не теги: тегов в репозитории нет, а схема, требующая ручного действия перед
-# каждым выпуском, ровно тем и плоха, от чего мы уходим.
+# Старшая часть из проекта (её меняют осознанно), младшая — число коммитов.
+# Забыть поднять невозможно: любой коммит её двигает, и она всегда больше
+# предыдущей.
 
 [xml] $proj = Get-Content (Join-Path $root 'CupsForge\CupsForge.csproj')
 $declared = ($proj.Project.PropertyGroup.Version | Where-Object { $_ }) -as [string]
@@ -42,18 +42,15 @@ $commits = (git -C $root rev-list --count HEAD).Trim()
 if (-not $commits) { throw 'Не удалось спросить у git число коммитов.' }
 
 $version = "$($parts[0]).$($parts[1]).$commits"
-Write-Host "Версия: $version  (из <Version>$declared> и $commits коммитов)"
+Write-Host "Версия: $version"
 
-# Примечание к выпуску: что увидят дизайнеры в полоске обновления.
-# Не указали — берём заголовок последнего коммита: он почти всегда и есть
-# ответ на вопрос «что изменилось».
 if (-not $Notes) {
     $Notes = (git -C $root log -1 --pretty=%s).Trim()
-    Write-Host "Примечание из последнего коммита: $Notes"
+    Write-Host "Что изменилось (из последнего коммита): $Notes"
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Самопроверка — не выкладываем то, что не проходит собственные тесты
+# Самопроверка
 # ─────────────────────────────────────────────────────────────────────────────
 Write-Host ''
 Write-Host 'Самопроверка…'
@@ -61,11 +58,22 @@ dotnet run --project (Join-Path $root 'Tests\SelfCheck') -c Release --nologo
 if ($LASTEXITCODE -ne 0) { throw 'Самопроверка не прошла — выпуск отменён.' }
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Ключ раздачи — спрашиваем ДО долгой сборки
+# ─────────────────────────────────────────────────────────────────────────────
+# Обидно собирать пять минут и только потом узнать, что заливать нечем.
+$token = ''
+if (-not $Local) {
+    . (Join-Path $root 'dist-common.ps1')
+    $ProgressPreference = 'SilentlyContinue'
+    $token = Get-DistToken -Repo $Repo
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Сборка
 # ─────────────────────────────────────────────────────────────────────────────
-# Публикуем ПАПКОЙ, а не одним файлом: дельта-обновления считаются по файлам.
-# Единый сжатый blob менялся бы целиком, и «сдвинуть кнопку» стоило бы
-# дизайнеру восьмидесяти мегабайт вместо сотни килобайт.
+# Публикуем ПАПКОЙ, а не одним файлом: разница между версиями считается
+# по файлам. Единый сжатый blob менялся бы целиком, и «поправить значок»
+# стоило бы дизайнеру восьмидесяти мегабайт вместо трёхсот килобайт.
 
 $staging = Join-Path $env:TEMP "cupsforge_build_$version"
 if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
@@ -77,31 +85,27 @@ dotnet publish (Join-Path $root 'CupsForge\CupsForge.csproj') -c Release -o $sta
 if ($LASTEXITCODE -ne 0) { throw 'Сборка не удалась.' }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Куда кладём
+# Где собираем пакеты
 # ─────────────────────────────────────────────────────────────────────────────
-# Проверка «есть ли куда» относится ТОЛЬКО к сетевому диску по умолчанию:
-# из дома Y: не виден, и это не повод останавливаться. Названную явно папку
-# создаём — раз назвали, значит туда и хотят.
+# Это КЭШ, а не канал: его можно удалить в любой момент, ничего не сломается.
+# Прошлые выпуски нужны только затем, чтобы посчитать разницу; если их нет,
+# выпуск просто выйдет полным.
+#
+# Лежит вне репозитория намеренно. Раньше при недоступном сетевом диске
+# пакеты складывались в release-local внутри репозитория — папку, на которую
+# ничто не смотрит. Выглядело как канал обновления, а обновление из неё
+# не приходило никому.
+$cache = if ($Local) { $Local } else { Join-Path $env:LOCALAPPDATA 'CupsForge-publish' }
+New-Item -ItemType Directory -Force -Path $cache | Out-Null
 
-$isDefault = $Destination -eq 'Y:\Soft\CupsForge\release'
-$networkReady = if ($isDefault) {
-    Test-Path (Split-Path -Parent $Destination)
-} else {
-    New-Item -ItemType Directory -Force -Path $Destination | Out-Null
-    $true
-}
-
-# Папка выпусков — она же канал обновления: Velopack читает её напрямую.
-# Складываем СРАЗУ туда, где лежат прошлые выпуски: без них дельту не с чем
-# считать, и каждое обновление снова весило бы как полная программа.
-$releases = if ($networkReady) { $Destination } else { Join-Path $root 'release-local' }
-
-if (-not $networkReady) {
+if (-not $Local) {
     Write-Host ''
-    Write-Host "Сетевой диск недоступен: $Destination" -ForegroundColor Yellow
-    Write-Host "Собираю в локальную папку: $releases"
+    Write-Host 'Забираю прошлый выпуск из раздачи (нужен, чтобы посчитать разницу)…'
+    dotnet vpk download github --repoUrl "https://github.com/$Repo" --token $token --outputDir $cache
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host 'Прошлых выпусков в раздаче нет — этот выйдет полным.' -ForegroundColor Yellow
+    }
 }
-New-Item -ItemType Directory -Force -Path $releases | Out-Null
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Упаковка
@@ -120,49 +124,65 @@ dotnet vpk pack `
     --packAuthors 'Cups' `
     --icon (Join-Path $root 'Images\Icon\logo.ico') `
     --releaseNotes $notesFile `
-    --outputDir $releases
+    --outputDir $cache
 if ($LASTEXITCODE -ne 0) { throw 'Упаковка не удалась.' }
 
 Remove-Item $notesFile -Force -ErrorAction SilentlyContinue
 Remove-Item $staging -Recurse -Force
 
-$setup = Join-Path $releases 'CupsForge-win-Setup.exe'
-$delta = Get-ChildItem $releases -Filter "CupsForge-$version-delta.nupkg" -ErrorAction SilentlyContinue
-
-Write-Host ''
-Write-Host "Готово: $releases" -ForegroundColor Green
-Write-Host "  установщик : $setup"
-if ($delta) {
-    $kb = [int]($delta.Length / 1KB)
-    Write-Host "  дельта     : $kb КБ — столько скачают те, у кого стоит прошлая версия"
-} else {
-    Write-Host '  дельта     : нет (первый выпуск либо прошлых версий рядом не оказалось)'
-}
+$delta = Get-ChildItem $cache -Filter "CupsForge-$version-delta.nupkg" -ErrorAction SilentlyContinue
+$weight = if ($delta) { "$([int]($delta.Length / 1KB)) КБ" } else { 'полностью (прошлых версий рядом не было)' }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Публичная раздача — единственный канал, достающий до домашних машин
+# Только к себе
 # ─────────────────────────────────────────────────────────────────────────────
-if ($SkipDist) {
+if ($Local) {
     Write-Host ''
-    Write-Host 'В раздачу не заливаю (-SkipDist). Удалённые дизайнеры версию не увидят.' -ForegroundColor Yellow
+    Write-Host "Собрано в $Local" -ForegroundColor Green
+    Write-Host "  установщик: $Local\CupsForge-win-Setup.exe"
+    Write-Host "  обновление: $weight"
+    Write-Host ''
+    Write-Host 'В раздачу НЕ отправлено — это сборка для себя.' -ForegroundColor Yellow
+    Write-Host 'Дизайнеры этой версии не увидят.'
     exit 0
 }
 
-. (Join-Path $root 'dist-common.ps1')
-$repo = 'Cups-bot/CupsForge-public'
-$token = Get-DistToken -Repo $repo
-
+# ─────────────────────────────────────────────────────────────────────────────
+# В раздачу — это и есть доставка
+# ─────────────────────────────────────────────────────────────────────────────
 Write-Host ''
-Write-Host 'Заливаю в раздачу…'
+Write-Host 'Отправляю в раздачу…'
 dotnet vpk upload github `
-    --repoUrl "https://github.com/$repo" `
+    --repoUrl "https://github.com/$Repo" `
     --token $token `
-    --outputDir $releases `
+    --outputDir $cache `
     --releaseName "CupsForge $version" `
     --tag "v$version" `
-    --merge
-if ($LASTEXITCODE -ne 0) { throw 'Заливка в раздачу не удалась.' }
+    --publish true `
+    --merge true
+if ($LASTEXITCODE -ne 0) { throw 'Отправка в раздачу не удалась — версия никому не придёт.' }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Сетевой диск — ускорение для офиса, не условие
+# ─────────────────────────────────────────────────────────────────────────────
+# Копия на диске нужна только затем, чтобы в офисе обновление шло по локальной
+# сети. Диска нет — ничего страшного: все получат то же самое из раздачи.
+$shareRoot = Split-Path -Parent $OfficeShare
+if (Test-Path $shareRoot) {
+    New-Item -ItemType Directory -Force -Path $OfficeShare | Out-Null
+    Copy-Item (Join-Path $cache '*') $OfficeShare -Force
+    Write-Host "Копия на сетевом диске обновлена: $OfficeShare"
+} else {
+    Write-Host 'Сетевой диск недоступен — пропускаю. Все получат версию из раздачи.'
+}
 
 Write-Host ''
-Write-Host 'Готово. У дизайнеров при следующем запуске появится полоска «Доступна версия».'
-Write-Host 'Каталог продуктов и шаблоны обновляются отдельно — push-templates.cmd.'
+Write-Host 'Готово.' -ForegroundColor Green
+Write-Host "  версия     : $version"
+Write-Host "  обновление : $weight — столько скачают те, у кого программа стоит"
+Write-Host "  установщик : $cache\CupsForge-win-Setup.exe (для НОВЫХ дизайнеров)"
+Write-Host ''
+Write-Host 'Больше ничего делать не нужно: у всех, у кого программа установлена,'
+Write-Host 'при следующем запуске появится полоска «Доступна версия».'
+Write-Host ''
+Write-Host 'Каталог и шаблоны обновляются отдельно — push-templates.cmd.'

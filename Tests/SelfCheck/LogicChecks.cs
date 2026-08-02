@@ -566,6 +566,26 @@ public static class LogicChecks
         check.True("раздача проверяется второй",
             both.Count > 1 && both[1].StartsWith("раздача", StringComparison.Ordinal));
 
+        // Канал обновления НЕ зависит от папки STAKANY. Раньше он выводился
+        // из {base}, и переезд рабочей папки молча ломал обновления: путь
+        // раскрывался в несуществующее место, программа честно ничего
+        // не находила, а человек видел только то, что версии перестали
+        // приходить. Ровно так это и случилось на живой машине.
+        check.True("канал обновления не зависит от папки STAKANY",
+            !new MachineProfile().UpdateSource.Contains("{base}", StringComparison.Ordinal));
+        check.Equal("по умолчанию — папка выпусков рядом с офисной структурой",
+            new MachineProfile().UpdateSource, MachineProfile.OfficeReleaseShare);
+
+        // Недоступный канал ВИДЕН, а не пропадает молча: иначе «обновления
+        // не приходят» не выяснить.
+        var broken = office.Clone();
+        broken.UpdateSource = Path.Combine(sandbox, "нет-такой-папки");
+        var shown = AppUpdates.Channels(broken);
+        check.True($"недоступный канал показывается ({shown.Count} строк)", shown.Count == 2);
+        check.True("и помечен недоступным", !shown[0].Available);
+        check.True("с указанием, чего не нашли",
+            shown[0].Detail.Contains("не найден", StringComparison.Ordinal));
+
         // Дома сетевого диска нет — остаётся один канал, и это НЕ ошибка.
         var home = MachineProfile.FromStakanyRoot(Path.Combine(sandbox, "нет-такой"));
         home.UpdateSource = Path.Combine(sandbox, "тоже-нет");

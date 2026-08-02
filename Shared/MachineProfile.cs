@@ -327,6 +327,7 @@ namespace CupsCore
         /// </summary>
         public void Save()
         {
+            GuardAgainstSandbox();
             Directory.CreateDirectory(DirectoryPath);
             var opts = new JsonSerializerOptions
             {
@@ -341,6 +342,41 @@ namespace CupsCore
                 File.Replace(temp, FilePath, destinationBackupFileName: null);
             else
                 File.Move(temp, FilePath);
+        }
+
+        /// <summary>
+        /// Не даёт записать в НАСТОЯЩИЙ профиль пути из временной папки.
+        ///
+        /// Самопроверка открывает окно с профилем-песочницей во временной папке
+        /// и на время прогона уводит хранение туда же. Если увод когда-нибудь
+        /// сломается, песочница молча заменит рабочие настройки — и дизайнер
+        /// обнаружит, что программа ищет шаблоны в папке, которой уже нет.
+        /// Так уже случалось, и заметили это спустя недели.
+        ///
+        /// Сторож в прогоне сравнивает время правки файла и ловит это ПОСЛЕ
+        /// факта. Здесь — до: запись просто не происходит.
+        /// </summary>
+        private void GuardAgainstSandbox()
+        {
+            if (_storageOverride != null)
+                return; // хранение уведено намеренно — это и есть песочница
+
+            string temp = Path.GetFullPath(Path.GetTempPath());
+            foreach (var pair in Roots)
+            {
+                if (string.IsNullOrWhiteSpace(pair.Value))
+                    continue;
+
+                string full;
+                try { full = Path.GetFullPath(pair.Value); } catch { continue; }
+
+                if (full.StartsWith(temp, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException(
+                        $"Отказ записать профиль: корень «{pair.Key}» указывает во временную папку " +
+                        $"({pair.Value}). Так рабочие настройки затирались песочницей самопроверки.");
+                }
+            }
         }
 
         // ---------- конструирование ----------
@@ -462,6 +498,36 @@ namespace CupsCore
 
         [JsonPropertyName("password")]
         public string Password { get; set; } = "";
+
+        /// <summary>
+        /// Адрес и путь API. Жили в appsettings.json рядом с программой —
+        /// файле, который на конечную машину не доезжал вовсе и потому был
+        /// не настройкой, а видимостью настройки. Переехали сюда: профиль
+        /// у каждого свой и до машины доезжает всегда.
+        /// </summary>
+        [JsonPropertyName("baseUrl")]
+        public string BaseUrl { get; set; } = "https://bitrix.formacia.ru";
+
+        [JsonPropertyName("dataPath")]
+        public string DataPath { get; set; } = "/mycups/api/design/getData";
+
+        [JsonPropertyName("timeoutSeconds")]
+        public int TimeoutSeconds { get; set; } = 30;
+
+        /// <summary>Готовое значение заголовка Authorization («Basic …»).</summary>
+        public string ResolveAuthHeader()
+        {
+            if (!string.IsNullOrWhiteSpace(AuthorizationHeader))
+                return AuthorizationHeader.Trim();
+
+            if (!string.IsNullOrEmpty(Login))
+            {
+                string token = Convert.ToBase64String(
+                    System.Text.Encoding.UTF8.GetBytes($"{Login}:{Password}"));
+                return $"Basic {token}";
+            }
+            return "";
+        }
 
         [JsonIgnore]
         public bool IsConfigured =>

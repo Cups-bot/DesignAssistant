@@ -600,6 +600,30 @@ public static class LogicChecks
         check.True("в отказе есть пропавший путь", (why ?? "").Contains(ghost, StringComparison.Ordinal));
         check.True("отказ ведёт в настройки", (why ?? "").Contains("настройк", StringComparison.OrdinalIgnoreCase));
 
+        // Защёлка: песочница не должна попадать в настоящий профиль.
+        // Сторож в конце прогона ловит это ПОСЛЕ факта — здесь запись просто
+        // не происходит. Именно так рабочие настройки однажды и подменились
+        // путями во временную папку, а заметили это спустя недели.
+        var real = MachineProfile.CreateOfficeDefault();
+        MachineProfile.RedirectStorage(null);
+        try
+        {
+            real.Roots[MachineProfile.Root.Templates] =
+                Path.Combine(Path.GetTempPath(), "cupsforge_selfcheck_ui", "STAKANY", "_Templates");
+
+            bool refused = false;
+            try { real.Save(); }
+            catch (InvalidOperationException) { refused = true; }
+
+            check.True("профиль с путём во временной папке сохранить нельзя", refused);
+        }
+        finally
+        {
+            // Возвращаем увод: остальной прогон обязан писать в песочницу.
+            MachineProfile.RedirectStorage(
+                Path.Combine(Path.GetTempPath(), "cupsforge_selfcheck_profile"));
+        }
+
         // Запрет обновлять копию вне папки установки переехал в AppUpdates
         // (проверяется в разделе «Обновления»): его держит Velopack, который
         // сам знает, установлен он или запущен портативно.

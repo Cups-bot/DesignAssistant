@@ -30,13 +30,6 @@
     -->
   </PropertyGroup>
 
-  <!-- appsettings.json копируется рядом с exe -->
-  <ItemGroup>
-    <None Update="appsettings.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
-
   <!-- Общий модуль (пути/шаблоны/enum'ы) — единый источник с ручным редактором -->
   <ItemGroup>
     <Compile Include="..\Shared\**\*.cs" Link="Shared\%(RecursiveDir)%(Filename)%(Extension)" />

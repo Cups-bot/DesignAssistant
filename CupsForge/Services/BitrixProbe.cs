@@ -17,10 +17,16 @@ namespace CupsForge.Services
 
         public static async Task<(bool ok, string message)> TestAsync(string key)
         {
-            var config = AppConfig.Load().Bitrix;
-            config.AuthorizationHeader = key;
-            config.Login = "";
-            config.Password = "";
+            // Берём адрес и таймаут из профиля, а ключ — тот, что сейчас введён
+            // в поле: проверять надо именно его, а не сохранённый.
+            var live = CupsCore.MachineProfile.Current.Bitrix;
+            var config = new CupsCore.BitrixAccess
+            {
+                AuthorizationHeader = key,
+                BaseUrl = live.BaseUrl,
+                DataPath = live.DataPath,
+                TimeoutSeconds = live.TimeoutSeconds
+            };
 
             try
             {

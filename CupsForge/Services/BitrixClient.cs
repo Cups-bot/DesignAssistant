@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using CupsCore;
 using CupsForge.Models;
 
 namespace CupsForge.Services
@@ -17,10 +18,10 @@ namespace CupsForge.Services
     /// </summary>
     public sealed class BitrixClient : IDisposable
     {
-        private readonly BitrixConfig _cfg;
+        private readonly BitrixAccess _cfg;
         private readonly HttpClient _http;
 
-        public BitrixClient(BitrixConfig cfg)
+        public BitrixClient(BitrixAccess cfg)
         {
             _cfg = cfg;
             _http = new HttpClient
@@ -44,7 +45,7 @@ namespace CupsForge.Services
         /// </summary>
         public async Task<DesignData> GetDataAsync(long id, CancellationToken ct = default)
         {
-            using var resp = await PostJsonAsync(_cfg.GetDataPath, new { id }, ct).ConfigureAwait(false);
+            using var resp = await PostJsonAsync(_cfg.DataPath, new { id }, ct).ConfigureAwait(false);
 
             if (resp.StatusCode == HttpStatusCode.NotFound)
                 throw new BitrixException($"Заказ {id} не найден (404).");

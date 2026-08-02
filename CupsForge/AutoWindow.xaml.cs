@@ -10,7 +10,6 @@ namespace CupsForge
 {
     public partial class AutoWindow : Window
     {
-        private readonly AppConfig _config = AppConfig.Load();
         private ResolvedDesign? _resolved;
 
         /// <summary>
@@ -398,7 +397,7 @@ namespace CupsForge
 
             DropNotice(NoticeIds.Link);
 
-            string auth = _config.Bitrix.ResolveAuthHeader();
+            string auth = MachineProfile.Current.Bitrix.ResolveAuthHeader();
             if (string.IsNullOrEmpty(auth))
             {
                 Log(BitrixAccess.NotConfiguredMessage, NoticeKind.Blocking);
@@ -413,7 +412,7 @@ namespace CupsForge
 
             try
             {
-                using var client = new BitrixClient(_config.Bitrix);
+                using var client = new BitrixClient(MachineProfile.Current.Bitrix);
                 DesignData data = await client.GetDataAsync(id);
                 if (_closed) return;
 

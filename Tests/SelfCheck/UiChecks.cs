@@ -230,9 +230,10 @@ public static class UiChecks
             double leftBefore = w.Left;
             double topBefore = w.Top;
 
-            // Язычок ещё не двигали — он обязан встать вровень с окном по высоте.
-            var freshProfile = MachineProfile.Current;
-            freshProfile.SideDrawerTop = null;
+            // Где стрелка внутри окна — от неё считается всё остальное.
+            double arrowOffset = collapseTab.TransformToAncestor(w)
+                                     .Transform(new Point(0, 0)).Y
+                                 + collapseTab.ActualHeight / 2;
 
             collapseTab.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             Pump(w, TimeSpan.FromMilliseconds(500));
@@ -250,20 +251,11 @@ public static class UiChecks
                 check.True($"язычок прижат к правому краю (x={tab.Left:0}, край={work.Right:0})",
                            Math.Abs(tab.Left + tab.Width - work.Right) < 2);
 
-                // По высоте — вровень с окном, по его середине. Язычок,
-                // появляющийся в центре экрана, теряется взглядом: человек
-                // смотрел на окно и ищет его там же.
-                double expected = topBefore + (height - tab.Height) / 2;
-                check.True($"язычок встал вровень с окном (y={tab.Top:0}, ожидалось {expected:0})",
-                           Math.Abs(tab.Top - expected) < 2);
-
-                // Перетаскивание: язычок двигается по вертикали и запоминает место.
-                double before = tab.Top;
-                tab.Top = before + 60;
-                tab.RaiseMoved(tab.Top);
-                check.True("перетаскивание запоминается в профиле",
-                           MachineProfile.Current.SideDrawerTop.HasValue &&
-                           Math.Abs(MachineProfile.Current.SideDrawerTop!.Value - (before + 60)) < 2);
+                // Язычок — продолжение стрелки внутри окна: их середины должны
+                // совпасть, иначе при сворачивании стрелка «прыгает».
+                double arrowCenter = topBefore + arrowOffset;
+                check.True($"середина язычка совпала со стрелкой окна (y={tab.Top + tab.Height / 2:0}, стрелка={arrowCenter:0})",
+                           Math.Abs(tab.Top + tab.Height / 2 - arrowCenter) < 2);
 
                 // За край экрана утащить нельзя — оттуда его не вернуть.
                 tab.MoveTo(work.Bottom + 500);
@@ -273,14 +265,28 @@ public static class UiChecks
                 check.True("язычок не уходит за верхний край", tab.Top >= work.Top - 0.5);
             }
 
+            // Двигаем язычок и разворачиваем: окно обязано открыться так, чтобы
+            // его стрелка встала на место язычка. Связь двусторонняя — иначе
+            // перетаскивание язычка ничего не значит.
+            //
+            // Ставим язычок в середину экрана НАМЕРЕННО: у самого края окно
+            // просто не поместится, сработает ограничение, и проверка мерила бы
+            // не совпадение, а упор в край.
+            double moved = 0;
+            if (tab != null)
+            {
+                tab.MoveTo(work.Top + work.Height / 2);
+                moved = tab.Top + tab.Height / 2;
+            }
+
             w.ExpandFromEdge();
             Pump(w, TimeSpan.FromMilliseconds(500));
 
             check.True("язычок возвращает окно", w.IsVisible);
-            // Обе координаты, а не только левая: раньше возвращалась одна,
-            // и окно всплывало не там, где его оставили.
-            check.True($"окно вернулось на прежнее место (x={w.Left:0}/{leftBefore:0}, y={w.Top:0}/{topBefore:0})",
-                       Math.Abs(w.Left - leftBefore) < 2 && Math.Abs(w.Top - topBefore) < 2);
+            check.True($"горизонталь сохранена (x={w.Left:0}, было {leftBefore:0})",
+                       Math.Abs(w.Left - leftBefore) < 2);
+            check.True($"окно встало по язычку (стрелка={w.Top + arrowOffset:0}, язычок={moved:0})",
+                       Math.Abs(w.Top + arrowOffset - moved) < 2);
             SameSize(check, w, "возврат из свёрнутого", width, height);
         }
 

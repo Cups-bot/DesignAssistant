@@ -174,16 +174,6 @@ namespace CupsCore
         [JsonPropertyName("sideDrawer")]
         public bool SideDrawer { get; set; } = true;
 
-        /// <summary>
-        /// Где по вертикали стоит язычок, если его перетаскивали. null — не
-        /// трогали, и он встаёт по высоте окна.
-        ///
-        /// Хранится в профиле, а не в памяти: человек двигает язычок один раз,
-        /// подальше от того, что у него на экране, и ожидает найти его там же
-        /// завтра. Панелью настроек не правится — пишется прямо при перетаскивании.
-        /// </summary>
-        [JsonPropertyName("sideDrawerTop")]
-        public double? SideDrawerTop { get; set; }
 
         // ---------- расположение файла ----------
 
@@ -284,7 +274,6 @@ namespace CupsCore
                 AutoSyncTemplates = AutoSyncTemplates,
                 SpecPanelExpanded = SpecPanelExpanded,
                 SideDrawer = SideDrawer,
-                SideDrawerTop = SideDrawerTop,
                 Bitrix = new BitrixAccess
                 {
                     AuthorizationHeader = Bitrix.AuthorizationHeader,

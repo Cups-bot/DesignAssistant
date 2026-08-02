@@ -22,9 +22,6 @@ namespace CupsForge
         /// <summary>Правая кнопка — выйти. Иначе из свёрнутого вида не выйти вовсе.</summary>
         public event EventHandler? Exit;
 
-        /// <summary>Язычок перетащили. Передаёт новое положение по вертикали.</summary>
-        public event EventHandler<double>? Moved;
-
         /// <summary>
         /// Насколько нужно сдвинуть язычок, чтобы это считалось перетаскиванием,
         /// а не щелчком. Без порога любое дрожание руки при нажатии превращало бы
@@ -119,11 +116,11 @@ namespace CupsForge
             if (!Tab.IsMouseOver)
                 Paint("Panel", "Line", "Muted");
 
-            // Не сдвинули — значит это был щелчок.
+            // Не сдвинули — значит это был щелчок. Сдвинули — язычок просто
+            // остался на новом месте: запоминать его негде и незачем, окно
+            // при разворачивании само встанет по нему.
             if (_travelled < DragThreshold)
                 Expand?.Invoke(this, EventArgs.Empty);
-            else
-                Moved?.Invoke(this, Top);
         }
 
         /// <summary>
@@ -132,9 +129,6 @@ namespace CupsForge
         /// краями экрана проверить обязана — за них язычок уходит безвозвратно.
         /// </summary>
         internal void MoveTo(double top) => Top = Clamp(top);
-
-        /// <summary>Сообщить о перемещении. Только для самопроверки.</summary>
-        internal void RaiseMoved(double top) => Moved?.Invoke(this, top);
 
         private void Tab_Exit(object sender, MouseButtonEventArgs e) =>
             Exit?.Invoke(this, EventArgs.Empty);

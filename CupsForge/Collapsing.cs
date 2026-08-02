@@ -8,13 +8,19 @@ namespace CupsForge
     /// Сворачивание программы к правому краю экрана.
     ///
     /// Окно уезжает за край, прячется целиком, и вместо него у края остаётся
-    /// узкий язычок поверх всех окон. Щелчок по язычку возвращает окно на место.
+    /// узкий язычок поверх всех окон. Щелчок по язычку возвращает окно.
     ///
-    /// Зачем это вместо обычного сворачивания в панель задач: дизайнер работает
+    /// Зачем это вместо сворачивания в панель задач: дизайнер работает
     /// в Illustrator весь день, а CupsForge нужен на минуту в начале каждого
-    /// заказа. В панели задач его ещё надо найти среди двадцати значков; у края
+    /// заказа. В панели задач его надо искать среди двадцати значков; у края
     /// экрана он всегда на одном месте и в одном щелчке, при этом не занимает
     /// ни пикселя рабочего пространства.
+    ///
+    /// ГЛАВНОЕ ПРАВИЛО: язычок у края экрана — это ПРОДОЛЖЕНИЕ стрелки внутри
+    /// окна. Они всегда на одной высоте, и переход между ними выглядит так,
+    /// будто стрелка осталась на месте, а окно от неё уехало. Поэтому связь
+    /// двусторонняя: подняли окно и свернули — язычок оказался выше; опустили
+    /// язычок и развернули — окно открылось ниже.
     ///
     /// Выключается в настройках: кому мешает полоска поверх всех окон, тот
     /// пользуется обычным сворачиванием.
@@ -24,14 +30,10 @@ namespace CupsForge
         private DockTab? _dock;
 
         /// <summary>
-        /// Где окно стояло до сворачивания — туда и вернём.
-        ///
-        /// Запоминаются обе координаты. Раньше возвращалась только левая, и
-        /// достаточно было свернуть, подвинуть что-то на экране и развернуть,
-        /// чтобы окно оказалось не там, где его оставили.
+        /// Горизонтальное положение окна. Вертикальное НЕ запоминается: его
+        /// задаёт язычок, который человек мог подвинуть, пока окно было свёрнуто.
         /// </summary>
         private double _expandedLeft;
-        private double _expandedTop;
 
         /// <summary>Программа сейчас свёрнута в язычок.</summary>
         internal bool IsCollapsed => _dock is { IsVisible: true };
@@ -39,8 +41,32 @@ namespace CupsForge
         private void Collapse_Click(object sender, RoutedEventArgs e) => CollapseToEdge();
 
         /// <summary>
-        /// Убирает окно за правый край экрана и показывает язычок.
+        /// Середина стрелки внутри окна — по вертикали, в координатах экрана.
+        /// От неё считается высота язычка и обратно.
         /// </summary>
+        private double ArrowCenterOnScreen => Top + ArrowOffsetInWindow;
+
+        /// <summary>Насколько середина стрелки отстоит от верха окна.</summary>
+        private double ArrowOffsetInWindow
+        {
+            get
+            {
+                try
+                {
+                    Point inWindow = DrawerTabButton
+                        .TransformToAncestor(this)
+                        .Transform(new Point(0, 0));
+                    return inWindow.Y + DrawerTabButton.ActualHeight / 2;
+                }
+                catch
+                {
+                    // Окно ещё не разложено — середина по высоте не хуже прочего.
+                    return ActualHeight / 2;
+                }
+            }
+        }
+
+        /// <summary>Убирает окно за правый край экрана и показывает язычок.</summary>
         internal void CollapseToEdge()
         {
             if (IsCollapsed)
@@ -48,42 +74,24 @@ namespace CupsForge
 
             Rect work = ScreenEdge.WorkAreaFor(this);
             _expandedLeft = Left;
-            _expandedTop = Top;
 
-            var slide = new DoubleAnimation(Left, work.Right, (Duration)FindResource("M.Base"))
-            {
-                EasingFunction = (IEasingFunction)FindResource("Ease")
-            };
+            // Высоту язычка считаем ДО отъезда: после Hide() спрашивать нечего.
+            double arrowCenter = ArrowCenterOnScreen;
 
-            slide.Completed += (_, _) =>
+            AnimateLeft(Left, work.Right, () =>
             {
-                // Анимация «держит» значение и не даёт задать Left вручную —
-                // снимаем её перед тем, как расставлять окно обратно.
-                BeginAnimation(LeftProperty, null);
                 Left = _expandedLeft;
                 Hide();
-                ShowDock(work);
-            };
-
-            BeginAnimation(LeftProperty, slide);
+                ShowDock(work, arrowCenter);
+            });
         }
 
-        private void ShowDock(Rect work)
+        private void ShowDock(Rect work, double arrowCenter)
         {
             if (_dock == null)
             {
                 _dock = new DockTab();
                 _dock.Expand += (_, _) => ExpandFromEdge();
-
-                // Перетащили язычок — запоминаем в профиле: человек двигает его
-                // один раз и ожидает найти там же завтра.
-                _dock.Moved += (_, top) =>
-                {
-                    MachineProfile.Current.SideDrawerTop = top;
-                    try { MachineProfile.Current.Save(); }
-                    catch (Exception ex) { Log("Не удалось запомнить место язычка: " + ex.Message,
-                                               NoticeKind.Warning); }
-                };
 
                 // Из свёрнутого вида иначе не выйти: главное окно спрятано,
                 // и закрыть программу было бы нечем.
@@ -95,14 +103,8 @@ namespace CupsForge
                 };
             }
 
-            // По высоте язычок встаёт вровень с окном — там, где человек только
-            // что на него смотрел. Если язычок когда-то перетаскивали, побеждает
-            // выбранное положение: его выбирали осознанно, подальше от того,
-            // что мешает на экране.
-            double top = MachineProfile.Current.SideDrawerTop
-                         ?? _expandedTop + (ActualHeight - _dock.Height) / 2;
-
-            _dock.ShowAt(work, top);
+            // Язычок встаёт серединой туда, где была середина стрелки в окне.
+            _dock.ShowAt(work, arrowCenter - _dock.Height / 2);
         }
 
         /// <summary>Возвращает окно из-за края и убирает язычок.</summary>
@@ -112,21 +114,48 @@ namespace CupsForge
                 return;
 
             Rect work = ScreenEdge.WorkAreaFor(_dock);
+            double tabCenter = _dock.Top + _dock.Height / 2;
 
             _dock.Hide();
 
-            // Показываем уже за краем, чтобы окно выехало, а не возникло.
-            // Вертикаль ставим сразу: анимируется только въезд сбоку.
+            // Окно встаёт так, чтобы его стрелка оказалась там, где стоял
+            // язычок: если язычок опускали, окно открывается ниже.
+            // По горизонтали — там же, где было.
             Left = work.Right;
-            Top = _expandedTop;
             Show();
-            Activate();
 
-            BeginAnimation(LeftProperty,
-                new DoubleAnimation(work.Right, _expandedLeft, (Duration)FindResource("M.Base"))
-                {
-                    EasingFunction = (IEasingFunction)FindResource("Ease")
-                });
+            double top = tabCenter - ArrowOffsetInWindow;
+            Top = Math.Max(work.Top, Math.Min(top, work.Bottom - ActualHeight));
+
+            Activate();
+            AnimateLeft(work.Right, _expandedLeft, null);
+        }
+
+        /// <summary>
+        /// Двигает окно по горизонтали и ОБЯЗАТЕЛЬНО снимает анимацию в конце.
+        ///
+        /// Незанятая мелочь, стоившая бага: доигравшая анимация продолжает
+        /// удерживать Left, и присвоения ей не перебить. Окно, передвинутое
+        /// мышью за титульную строку, уезжало по-настоящему, но свойство
+        /// оставалось прежним — при следующем сворачивании запоминалось старое
+        /// место, и окно всплывало там, где стояло при запуске (по центру
+        /// экрана), а не там, где его оставили.
+        /// </summary>
+        private void AnimateLeft(double from, double to, Action? done)
+        {
+            var slide = new DoubleAnimation(from, to, (Duration)FindResource("M.Base"))
+            {
+                EasingFunction = (IEasingFunction)FindResource("Ease")
+            };
+
+            slide.Completed += (_, _) =>
+            {
+                BeginAnimation(LeftProperty, null);
+                Left = to;
+                done?.Invoke();
+            };
+
+            BeginAnimation(LeftProperty, slide);
         }
 
         /// <summary>

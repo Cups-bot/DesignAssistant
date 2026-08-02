@@ -36,6 +36,10 @@ namespace CupsForge
             LogBox.ItemsSource = _log;
             FooterHint.Text = "v" + Updater.CurrentVersion;
 
+            // Углы скругляет композитор Windows. Через прозрачность было бы
+            // проще, но она отключает ClearType, и весь текст становится мягче.
+            WindowRounding.Attach(this);
+
             Loaded += (_, _) =>
             {
                 // Возвращённый признак нельзя игнорировать: отказ от мастера
@@ -502,7 +506,16 @@ namespace CupsForge
             SetStage(Stage.Done);
         }
 
-        private void NextOrder_Click(object sender, RoutedEventArgs e)
+        /// <summary>
+        /// Отказ от разобранного заказа. Ссылка стирается вся: оставлять её
+        /// в поле значит предлагать «проверить то же самое ещё раз», а человек
+        /// нажал «Отменить» именно потому, что заказ не тот.
+        /// </summary>
+        private void CancelResult_Click(object sender, RoutedEventArgs e) => ResetToEmpty();
+
+        private void NextOrder_Click(object sender, RoutedEventArgs e) => ResetToEmpty();
+
+        private void ResetToEmpty()
         {
             _resolved = null;
             _canBuildResolved = false;

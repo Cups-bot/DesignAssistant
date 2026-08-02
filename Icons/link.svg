@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- CupsForge · иконка «link». Поле 24x24, штрих 1.7, скруглённые концы.
+     Правьте в любом редакторе. После правки: .\sync-icons.cmd -->
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+     fill="none" stroke="currentColor" stroke-width="1.7"
+     stroke-linecap="round" stroke-linejoin="round">
+  <path d="M9,17 H7 A5,5 0 0 1 7,7 h2 M15,7 h2 a5,5 0 1 1 0,10 h-2 M8,12 h8"/>
+</svg>

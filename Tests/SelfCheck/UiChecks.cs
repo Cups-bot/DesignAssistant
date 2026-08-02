@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Linq;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -302,6 +303,84 @@ public static class UiChecks
                 ? $"иконки разбираются в геометрию ({icons} шт.)"
                 : "иконки разбираются в геометрию — сломаны: " + string.Join(", ", broken),
             broken.Count == 0);
+
+        CheckIconsMatchSvg(check, app);
+    }
+
+    /// <summary>
+    /// Значки в программе совпадают с исходными SVG.
+    ///
+    /// Дизайнер правит Icons\*.svg в редакторе, sync-icons.cmd переносит их в
+    /// Icons.xaml. Забыть второй шаг легко, и тогда получается худший вид
+    /// расхождения: в репозитории значок новый, в программе старый, и никто
+    /// об этом не узнает. Сверяем разобранную геометрию, а не текст: одна и та
+    /// же фигура записывается по-разному («M5,12» и «M 5 12»), и сравнение
+    /// строк ругалось бы на пустом месте.
+    /// </summary>
+    private static void CheckIconsMatchSvg(Checker check, Application app)
+    {
+        var assembly = typeof(CupsForge.AutoWindow).Assembly;
+        var svgNames = assembly.GetManifestResourceNames()
+            .Where(n => n.EndsWith(".svg", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (svgNames.Count == 0)
+        {
+            check.Fail("исходные SVG значков не вложены в сборку");
+            return;
+        }
+
+        var stale = new List<string>();
+        int compared = 0;
+
+        foreach (string resource in svgNames)
+        {
+            string file = resource[(resource.LastIndexOf('.', resource.Length - 5) + 1)..];
+            string key = "I." + string.Concat(
+                Path.GetFileNameWithoutExtension(file).Split('-')
+                    .Where(p => p.Length > 0)
+                    .Select(p => char.ToUpperInvariant(p[0]) + p[1..]));
+
+            string svg;
+            using (var stream = assembly.GetManifestResourceStream(resource))
+            {
+                if (stream == null) continue;
+                using var reader = new StreamReader(stream);
+                svg = reader.ReadToEnd();
+            }
+
+            var paths = System.Text.RegularExpressions.Regex.Matches(svg, "<path[^>]*\\sd=\"([^\"]+)\"");
+            if (paths.Count == 0)
+            {
+                stale.Add($"{file} (нет <path d=…>)");
+                continue;
+            }
+
+            string data = string.Join(" ", paths.Select(m => m.Groups[1].Value.Trim()));
+
+            if (app.Resources[key] is not Geometry inProgram)
+            {
+                stale.Add($"{file} (в программе нет {key})");
+                continue;
+            }
+
+            try
+            {
+                if (Geometry.Parse(data).ToString() != inProgram.ToString())
+                    stale.Add(file);
+                else
+                    compared++;
+            }
+            catch (Exception ex)
+            {
+                stale.Add($"{file} ({ex.Message})");
+            }
+        }
+
+        check.True(stale.Count == 0
+                ? $"значки совпадают с исходными SVG ({compared} шт.)"
+                : "значки разошлись с SVG — запустите sync-icons.cmd: " + string.Join(", ", stale),
+            stale.Count == 0);
     }
 
     /// <summary>

@@ -38,6 +38,10 @@
     <Page Include="..\Shared\Theme\Controls.xaml" Link="Shared\Theme\Controls.xaml" />
     <!-- Каталог продуктов: копия внутри программы — последний источник в цепочке. -->
     <EmbeddedResource Include="..\Shared\catalog.json" Link="Shared\catalog.json" />
+    <!-- Исходные SVG значков. В работе не используются — из них собран Icons.xaml.
+         Нужны самопроверке, чтобы сверить: не забыли ли sync-icons.cmd после
+         правки значка. Весят ~8 КБ на все девятнадцать. -->
+    <EmbeddedResource Include="..\Icons\*.svg" Link="Icons\%(Filename)%(Extension)" />
   </ItemGroup>
 
   <!-- Та же защита, что и в корневом проекте: без неё вынос obj/bin наружу

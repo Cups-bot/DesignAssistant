@@ -154,39 +154,100 @@
         <Setter Property="Padding" Value="8,3"/>
     </Style>
 
-    <!-- ============ ТОНКАЯ ПОЛОСА ПРОКРУТКИ ============ -->
-    <!-- Системная в тёмном окне выглядит вырезанной из другой программы. -->
-    <Style x:Key="ThinScrollThumb" TargetType="Thumb">
+    <!-- ============ ПОЛОСА ПРОКРУТКИ ============ -->
+    <!--
+        По образцу Telegram: тонкая капля без дорожки, без стрелок и без фона.
+        Три вещи делают её незаметной:
+
+        1. НАКЛАДНАЯ. Ширина полосы 0, ползунок вынесен наружу отрицательным
+           отступом. Полоса не отнимает место у содержимого и не ложится на
+           него — раньше она сидела прямо поверх выпадающих списков.
+        2. ТОНКАЯ И ПОЛУПРОЗРАЧНАЯ. 3 px в покое; цвет не сплошной, поэтому
+           она не спорит с текстом.
+        3. РАСТЁТ ПОД КУРСОРОМ. Наведение — 6 px и заметнее: попасть по 3 px
+           мышью нельзя, а искать её глазами не нужно.
+
+        Дорожки нет намеренно: сплошная колея вдоль всей высоты в маленьком
+        окне читается как граница панели.
+    -->
+    <Style x:Key="ScrollThumb" TargetType="Thumb">
+        <Setter Property="OverridesDefaultStyle" Value="True"/>
+        <Setter Property="IsTabStop" Value="False"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Thumb">
-                    <Border CornerRadius="{StaticResource R.Pill}" Background="{StaticResource Line}"/>
+                    <Border x:Name="track" Background="Transparent" Width="10">
+                        <Border x:Name="pill" Width="3" HorizontalAlignment="Center"
+                                CornerRadius="{StaticResource R.Pill}"
+                                Background="{StaticResource Text}" Opacity="0.22">
+                            <Border.RenderTransform>
+                                <ScaleTransform x:Name="grow" ScaleX="1" CenterX="1.5"/>
+                            </Border.RenderTransform>
+                        </Border>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="pill" Property="Opacity" Value="0.45"/>
+                            <Setter TargetName="pill" Property="Width" Value="6"/>
+                        </Trigger>
+                        <Trigger Property="IsDragging" Value="True">
+                            <Setter TargetName="pill" Property="Opacity" Value="0.6"/>
+                            <Setter TargetName="pill" Property="Width" Value="6"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
     </Style>
 
     <Style TargetType="ScrollBar">
-        <Setter Property="Width" Value="4"/>
+        <Setter Property="OverridesDefaultStyle" Value="True"/>
         <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Width" Value="0"/>
+        <Setter Property="MinWidth" Value="0"/>
+        <Setter Property="Margin" Value="0,2,1,2"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ScrollBar">
-                    <Track x:Name="PART_Track" IsDirectionReversed="True">
-                        <Track.Thumb>
-                            <Thumb Style="{StaticResource ThinScrollThumb}"/>
-                        </Track.Thumb>
-                        <Track.IncreaseRepeatButton>
-                            <RepeatButton Command="ScrollBar.PageDownCommand" Opacity="0" Focusable="False"/>
-                        </Track.IncreaseRepeatButton>
-                        <Track.DecreaseRepeatButton>
-                            <RepeatButton Command="ScrollBar.PageUpCommand" Opacity="0" Focusable="False"/>
-                        </Track.DecreaseRepeatButton>
-                    </Track>
+                    <!-- Ширина 0 у самой полосы, ползунок вынесен наружу:
+                         содержимое не сжимается под неё и не прыгает, когда
+                         полоса появляется и исчезает. -->
+                    <Grid Width="0" HorizontalAlignment="Right">
+                        <Track x:Name="PART_Track" IsDirectionReversed="True"
+                               Width="10" Margin="-10,0,0,0">
+                            <Track.Thumb>
+                                <Thumb Style="{StaticResource ScrollThumb}"/>
+                            </Track.Thumb>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Command="ScrollBar.PageDownCommand"
+                                              Opacity="0" Focusable="False" IsTabStop="False"/>
+                            </Track.IncreaseRepeatButton>
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Command="ScrollBar.PageUpCommand"
+                                              Opacity="0" Focusable="False" IsTabStop="False"/>
+                            </Track.DecreaseRepeatButton>
+                        </Track>
+                    </Grid>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
     </Style>
+
+    <!-- ============ ЗАТУХАНИЕ У КРАЯ ПРОКРУТКИ ============ -->
+    <!--
+        Маска на прокручиваемую область: содержимое растворяется у нижнего края,
+        а не обрывается по нему.
+
+        Без неё строка, попавшая на границу, выглядит разрезанной пополам —
+        читается как сломанная вёрстка, а не как «ниже есть ещё». Особенно
+        заметно, когда сразу под областью стоит кнопка: обрез сливается с её
+        краем. Верх не трогаем: там заголовок, и растворять его незачем.
+    -->
+    <LinearGradientBrush x:Key="FadeBottom" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#FF000000" Offset="0"/>
+        <GradientStop Color="#FF000000" Offset="0.88"/>
+        <GradientStop Color="#00000000" Offset="1"/>
+    </LinearGradientBrush>
 
     <!-- ============ ВЫПАДАЮЩИЙ СПИСОК ============ -->
     <!-- Системный ComboBox рисуется светлым и в тёмном окне выглядит дырой.

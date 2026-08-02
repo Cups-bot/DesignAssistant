@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- CupsForge · иконка «refresh». Поле 24x24, штрих 1.7, скруглённые концы.
+     Правьте в любом редакторе. После правки: .\sync-icons.cmd -->
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+     fill="none" stroke="currentColor" stroke-width="1.7"
+     stroke-linecap="round" stroke-linejoin="round">
+  <path d="M3,12 a9,9 0 0 1 9,-9 9.75,9.75 0 0 1 6.74,2.74 L21,8 M21,3 v5 h-5 M21,12 a9,9 0 0 1 -9,9 9.75,9.75 0 0 1 -6.74,-2.74 L3,16 M8,16 H3 v5"/>
+</svg>

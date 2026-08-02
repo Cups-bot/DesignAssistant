@@ -56,10 +56,9 @@
                     <Ellipse Width="10" Height="10" Fill="{StaticResource Ok}"/>
                 </StackPanel>
 
-                <TextBlock VerticalAlignment="Center" HorizontalAlignment="Center"
-                           FontFamily="{StaticResource F.Semibold}" FontSize="12" IsHitTestVisible="False">
-                    <Run Text="Cups" Foreground="{StaticResource Text}"/><Run Text="Forge" Foreground="{StaticResource Accent}"/>
-                </TextBlock>
+                <!-- Названия в шапке нет: программа одна, окно одно, и подпись
+                     «CupsForge» сообщала пользователю ровно ноль. Шапка нужна
+                     под управление окном и настройки, а не под самоназвание. -->
 
                 <Button x:Name="SettingsButton" Style="{StaticResource IconButton}"
                         HorizontalAlignment="Right" Margin="0,0,10,0" ToolTip="Настройки рабочего места"
@@ -265,15 +264,25 @@
                         </ScrollViewer>
                     </Border>
 
-                    <Button x:Name="BuildButton" Grid.Row="2" Style="{StaticResource PrimaryAction}"
-                            IsEnabled="False" Click="BuildButton_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <Path Style="{StaticResource Icon}" Data="{StaticResource I.FolderPlus}"
-                                  Width="17" Height="17" Stretch="Uniform" StrokeThickness="2.4"
-                                  Margin="0,0,9,0"/>
-                            <TextBlock x:Name="BuildButtonText" Text="Создать проект" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
+                    <StackPanel Grid.Row="2">
+                        <Button x:Name="BuildButton" Style="{StaticResource PrimaryAction}"
+                                IsEnabled="False" Click="BuildButton_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <Path Style="{StaticResource Icon}" Data="{StaticResource I.FolderPlus}"
+                                      Width="17" Height="17" Stretch="Uniform" StrokeThickness="2.4"
+                                      Margin="0,0,9,0"/>
+                                <TextBlock x:Name="BuildButtonText" Text="Создать проект" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Выход из разобранного заказа. Мелким текстом и без
+                             заливки: отказ — не равноправная альтернатива созданию,
+                             а запасной выход. Акцент на экране остаётся один. -->
+                        <Button x:Name="CancelResultButton" Style="{StaticResource Ghost}"
+                                Margin="0,6,0,0" HorizontalAlignment="Center"
+                                FontSize="{StaticResource T.Label}" Content="Отменить"
+                                Click="CancelResult_Click"/>
+                    </StackPanel>
                 </Grid>
 
                 <!-- ─── СОЗДАЁТСЯ ─── -->
@@ -358,7 +367,8 @@
                         </Button>
                     </Grid>
 
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,8,0,8" Padding="0,0,8,0">
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,8,0,8"
+                                  OpacityMask="{StaticResource FadeBottom}">
                         <Border x:Name="ManualPanel" Background="Transparent">
                             <StackPanel>
                                 <!-- Без подписи поле читается как «поиск»: дизайнер
@@ -492,7 +502,8 @@
                         </Grid>
 
                         <ScrollViewer x:Name="JournalScroll" Grid.Row="1" MaxHeight="180"
-                                      VerticalScrollBarVisibility="Auto" Margin="14,0,10,10">
+                                      VerticalScrollBarVisibility="Auto" Margin="14,0,10,10"
+                                      OpacityMask="{StaticResource FadeBottom}">
                             <ItemsControl x:Name="LogBox">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>

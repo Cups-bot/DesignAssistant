@@ -115,7 +115,17 @@
     </Style>
 
     <!-- ============ ВТОРИЧНОЕ ДЕЙСТВИЕ ============ -->
-    <!-- Текст и иконка, без заливки. Всё, что не «следующий шаг», выглядит так. -->
+    <!--
+        Текст и иконка, без заливки. Всё, что не «следующий шаг», выглядит так.
+
+        Радиус — R.Sm, а НЕ R.Pill. Пилюля хороша для короткой надписи, но у
+        широкой кнопки WPF скругляет по половине высоты, и подсветка растягивалась
+        в стадион во всю ширину: у подвала «Журнал» это выглядело так, будто
+        нажали на половину окна.
+
+        Подсветка тише прежней: заметить наведение достаточно лёгкого фона,
+        а вторичное действие не должно спорить с главным.
+    -->
     <Style x:Key="Ghost" TargetType="Button">
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Foreground" Value="{StaticResource Muted}"/>
@@ -127,7 +137,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="b" CornerRadius="{StaticResource R.Pill}"
+                    <Border x:Name="b" CornerRadius="{StaticResource R.Sm}"
                             Background="{TemplateBinding Background}"
                             Padding="{TemplateBinding Padding}">
                         <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
@@ -135,11 +145,37 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="b" Property="Background" Value="{StaticResource Input}"/>
+                            <Setter TargetName="b" Property="Background" Value="#141C2C"/>
                             <Setter Property="Foreground" Value="{StaticResource Text}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="b" Property="Opacity" Value="0.45"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        Кнопка во всю ширину полосы — подвал с журналом.
+
+        Заливки нет вовсе: любой фон на элементе шириной с окно читается как
+        «нажали на пол-окна», а не как подсветка. Наведение показывает себя
+        цветом текста и значка — этого хватает, потому что весь подвал и есть
+        одна кнопка.
+    -->
+    <Style x:Key="GhostBar" TargetType="Button" BasedOn="{StaticResource Ghost}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="b" Background="Transparent" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource Text}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

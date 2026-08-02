@@ -238,15 +238,7 @@ namespace CupsForge
 
         private void SettingsButton_Click(object sender, RoutedEventArgs e) => OpenSettings();
 
-        private void SettingsScrim_Click(object sender, MouseButtonEventArgs e)
-        {
-            // Пока рабочее место не настроено, закрыть панель щелчком мимо нельзя:
-            // за ней всё равно нет ничего, чем можно пользоваться.
-            if (!_configured)
-                return;
-
-            CloseSettings();
-        }
+        private void SettingsScrim_Click(object sender, MouseButtonEventArgs e) => CloseSettings();
 
         /// <summary>
         /// Открывает панель настроек. <paramref name="announce"/> — почему она
@@ -264,19 +256,18 @@ namespace CupsForge
                     // не требуя перезапуска.
                     ApplySetupState(!SettingsPanel.NeedsWizard(out _));
                     ReportCatalog();
+                    CloseSettings();
+                };
 
-                    if (_configured)
-                        CloseSettings();
-                    else
-                        _settings!.Announce("Часть папок всё ещё не найдена.");
-                };
-                _settings.Cancelled += (_, _) =>
-                {
-                    if (_configured)
-                        CloseSettings();
-                    else
-                        _settings!.Announce("Без рабочих папок создать проект не получится.");
-                };
+                // Закрыть панель можно ВСЕГДА — и крестиком, и «Отменой»,
+                // и щелчком мимо.
+                //
+                // Сначала я не давал закрыться, пока папки не настроены: логика
+                // «за панелью всё равно нечего делать». На практике это выглядело
+                // сломанным крестиком — человек жмёт, ничего не происходит, и он
+                // решает, что программа зависла. Запрет держится там, где ему
+                // место: «Создать проект» недоступно, а причина висит полоской.
+                _settings.Cancelled += (_, _) => CloseSettings();
                 SettingsHost.Content = _settings;
             }
 
@@ -295,7 +286,32 @@ namespace CupsForge
                 });
         }
 
-        private void CloseSettings() => SettingsOverlay.Visibility = Visibility.Collapsed;
+        private void CloseSettings()
+        {
+            SettingsOverlay.Visibility = Visibility.Collapsed;
+
+            // Папки могли появиться и без «Сохранить» — кнопкой «Создать папки».
+            // Пересчитываем состояние, иначе запрет держится на устаревшем ответе.
+            ApplySetupState(!SettingsPanel.NeedsWizard(out _));
+        }
+
+        /// <summary>
+        /// Полная правка разобранного заказа: все поля сразу.
+        ///
+        /// Лист на одно поле хорош, когда ошибка одна. Когда разбор промахнулся
+        /// целиком — не тот заказ, не то направление — щёлкать по семи строкам
+        /// подряд издевательство, и нужен обычный ручной ввод с перенесёнными
+        /// значениями.
+        /// </summary>
+        private void EditAll_Click(object sender, RoutedEventArgs e)
+        {
+            if (_resolved == null)
+                return;
+
+            FillManualFrom(_resolved);
+            SetStage(Stage.Manual);
+            Log("Правка всех полей заказа.");
+        }
 
         // ═══════════ буфер обмена ═══════════
 

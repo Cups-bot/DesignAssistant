@@ -132,6 +132,7 @@ public static class UiChecks
             nameBox.Text = "132583 CarBar ST DW90-430";
             check.True("на настроенном месте ручной ввод разрешает «Создать проект»",
                        (w.FindName("ManualBuildButton") as Button)?.IsEnabled == true);
+            Snapshot(w, "7-набранный-текст");
         }
 
         // Списки строятся из каталога, поэтому проверяем именно их содержимое.
@@ -586,9 +587,16 @@ public static class UiChecks
                     host.Content is SettingsPanel panel &&
                     panel.FindName("CancelButton") is Button cancel)
                 {
+                    // Закрыть панель можно всегда. Запрет держится не на ней,
+                    // а на «Создать проект»: неработающий крестик человек читает
+                    // как зависшую программу, а не как правило.
                     cancel.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-                    check.True("отмена не закрывает панель, пока папок нет",
-                        (window.FindName("SettingsOverlay") as UIElement)?.Visibility == Visibility.Visible);
+                    check.True("отмена закрывает панель даже без папок",
+                        (window.FindName("SettingsOverlay") as UIElement)?.Visibility != Visibility.Visible);
+                    check.True("но запрет на создание остаётся",
+                        (window.FindName("BuildButton") as Button)?.IsEnabled == false);
+                    check.True("и причина остаётся на экране",
+                        (window.FindName("NoticeBar") as UIElement)?.Visibility == Visibility.Visible);
                 }
                 else
                 {

@@ -88,7 +88,7 @@ namespace CupsCore
             // движение
             "M.Fast", "M.Base", "M.Slow", "Ease",
             // контролы
-            "Field", "PrimaryAction", "SubmitButton", "IconButton", "Ghost", "LinkAction",
+            "Field", "PrimaryAction", "SubmitButton", "IconButton", "Ghost", "GhostBar", "LinkAction", "Outline", "Segment",
             "Combo", "ComboItem", "ScrollThumb", "FadeToBg", "FadeToPanel", "FadeToSurface",
             // иконки
             "Icon", "IconPlain",

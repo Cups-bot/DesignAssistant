@@ -206,6 +206,7 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <Border x:Name="ResultBadge" Grid.Column="0" Width="34" Height="34"
                                 CornerRadius="{StaticResource R.Sm}" Margin="0,0,11,0"
@@ -218,12 +219,23 @@
                             <TextBlock x:Name="ResultHeadline" Style="{StaticResource Title}" FontSize="14.5"/>
                             <TextBlock x:Name="ResultSubline" Style="{StaticResource Mono}" Margin="0,2,0,0"/>
                         </StackPanel>
+
+                        <!-- Правка всего заказа сразу. Лист на одно поле удобен,
+                             когда ошибка одна; когда разбор промахнулся целиком
+                             (не тот заказ, не то направление), щёлкать по семи
+                             строкам подряд — издевательство. -->
+                        <Button x:Name="EditAllButton" Grid.Column="2" Style="{StaticResource IconButton}"
+                                VerticalAlignment="Top" ToolTip="Поправить все поля сразу"
+                                Click="EditAll_Click">
+                            <Path Style="{StaticResource Icon}" Data="{StaticResource I.Pencil}"
+                                  Width="15" Height="15" Stretch="Uniform" StrokeThickness="2.6"/>
+                        </Button>
                     </Grid>
 
                     <!-- Поля заказа. Список — ДАННЫЕ: состав строится из заказа
                          и каталога, а не перечисляется здесь. Новый продукт со
                          своим полем появится сам. -->
-                    <Border Grid.Row="1" Margin="0,14,0,12" CornerRadius="{StaticResource R.Md}"
+                    <Border Grid.Row="1" Margin="0,12,0,10" CornerRadius="{StaticResource R.Md}"
                             Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}"
                             BorderThickness="1" ClipToBounds="True">
                         <Grid>
@@ -235,7 +247,7 @@
                                                 HorizontalContentAlignment="Stretch"
                                                 Tag="{Binding}" Click="ResultField_Click"
                                                 ToolTip="{Binding Hint}">
-                                            <Border Background="Transparent" Padding="12,8"
+                                            <Border Background="Transparent" Padding="11,6"
                                                     BorderBrush="{StaticResource LineSoft}" BorderThickness="0,0,0,1">
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
@@ -283,7 +295,7 @@
                              заливки: отказ — не равноправная альтернатива созданию,
                              а запасной выход. Акцент на экране остаётся один. -->
                         <Button x:Name="CancelResultButton" Style="{StaticResource Ghost}"
-                                Margin="0,6,0,0" HorizontalAlignment="Center"
+                                Margin="0,4,0,0" HorizontalAlignment="Center"
                                 FontSize="{StaticResource T.Label}" Content="Отменить"
                                 Click="CancelResult_Click"/>
                     </StackPanel>
@@ -358,6 +370,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
@@ -434,8 +447,6 @@
                                               Style="{StaticResource Combo}"/>
                                 </Grid>
 
-                                <TextBlock x:Name="ManualProductInfo" Style="{StaticResource Body}"
-                                           Margin="2,10,0,0"/>
                             </StackPanel>
                         </Border>
                     </ScrollViewer>
@@ -445,7 +456,14 @@
                                    Fill="{StaticResource FadeToBg}"/>
                     </Grid>
 
-                    <Button x:Name="ManualBuildButton" Grid.Row="2" Style="{StaticResource PrimaryAction}"
+                    <!-- Подобранный продукт — итог всего, что выбрано выше, и он
+                         обязан быть виден всегда. Внутри прокрутки эта строка
+                         стояла последней и попадала прямо под накладку
+                         затухания: текст был, но прочитать его было нельзя. -->
+                    <TextBlock x:Name="ManualProductInfo" Grid.Row="2" Style="{StaticResource Body}"
+                               Margin="2,0,2,8"/>
+
+                    <Button x:Name="ManualBuildButton" Grid.Row="3" Style="{StaticResource PrimaryAction}"
                             IsEnabled="False" Click="BuildButton_Click">
                         <StackPanel Orientation="Horizontal">
                             <Path Style="{StaticResource Icon}" Data="{StaticResource I.FolderPlus}"
@@ -458,7 +476,7 @@
             </Grid>
 
             <!-- ═══════════ ПОДВАЛ ═══════════ -->
-            <Button x:Name="JournalToggle" Grid.Row="3" Style="{StaticResource Ghost}"
+            <Button x:Name="JournalToggle" Grid.Row="3" Style="{StaticResource GhostBar}"
                     Height="{StaticResource Size.Footer}" Padding="14,0"
                     HorizontalContentAlignment="Stretch" Click="JournalToggle_Click">
                 <Grid>

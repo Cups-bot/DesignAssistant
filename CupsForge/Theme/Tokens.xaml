@@ -21,11 +21,11 @@
     <Color x:Key="C.Surface">#0A152B</Color>
     <Color x:Key="C.Panel">#0B1730</Color>
     <Color x:Key="C.Input">#0B1730</Color>
-    <Color x:Key="C.Line">#EAF1FF</Color>
+    <Color x:Key="C.Line">#18202F</Color>
     <Color x:Key="C.LineSoft">#121A28</Color>
     <Color x:Key="C.Text">#EAF1FF</Color>
     <Color x:Key="C.Muted">#9FB1C6</Color>
-    <Color x:Key="C.Dim">#5E6A7D</Color>
+    <Color x:Key="C.Dim">#EAF1FF</Color>
     <Color x:Key="C.Accent">#2E7BFF</Color>
     <Color x:Key="C.AccentDeep">#3D87FF</Color>
     <Color x:Key="C.Ok">#34D399</Color>

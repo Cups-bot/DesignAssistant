@@ -17,17 +17,17 @@
     <!-- Роль, а не оттенок: "panel", а не "тёмно-синий". Перекрасить тему
          значит поменять эти строки, не трогая ни одной разметки. -->
 
-    <Color x:Key="C.Bg">#04070F</Color>
-    <Color x:Key="C.Surface">#080E1B</Color>
-    <Color x:Key="C.Panel">#0B1220</Color>
-    <Color x:Key="C.Input">#0C1426</Color>
+    <Color x:Key="C.Bg">#070B14</Color>
+    <Color x:Key="C.Surface">#0A152B</Color>
+    <Color x:Key="C.Panel">#0B1730</Color>
+    <Color x:Key="C.Input">#0B1730</Color>
     <Color x:Key="C.Line">#18202F</Color>
     <Color x:Key="C.LineSoft">#121A28</Color>
-    <Color x:Key="C.Text">#E8EAEE</Color>
-    <Color x:Key="C.Muted">#98A2B3</Color>
+    <Color x:Key="C.Text">#EAF1FF</Color>
+    <Color x:Key="C.Muted">#9FB1C6</Color>
     <Color x:Key="C.Dim">#5E6A7D</Color>
-    <Color x:Key="C.Accent">#38BDF8</Color>
-    <Color x:Key="C.AccentDeep">#2563EB</Color>
+    <Color x:Key="C.Accent">#2E7BFF</Color>
+    <Color x:Key="C.AccentDeep">#3D87FF</Color>
     <Color x:Key="C.Ok">#34D399</Color>
     <Color x:Key="C.Warn">#FBBF24</Color>
     <Color x:Key="C.Danger">#F97373</Color>
@@ -48,7 +48,7 @@
     <SolidColorBrush x:Key="Danger"     Color="{StaticResource C.Danger}"/>
 
     <!-- Затемнение под шторками и панелями. -->
-    <SolidColorBrush x:Key="Scrim" Color="#020617" Opacity="0.6"/>
+    <SolidColorBrush x:Key="Scrim" Color="#070B14" Opacity="0.6"/>
 
     <!-- Один градиент на экран. Он помечает ЕДИНСТВЕННЫЙ следующий шаг:
          как только им покрашено что-то ещё, состояние перестаёт читаться
@@ -110,7 +110,7 @@
 
         Ориентиры: 1.4 — тонко и строго, 1.7 — как сейчас, 2.0 — заметно жирнее.
     -->
-    <sys:Double x:Key="Size.Stroke">1</sys:Double>
+    <sys:Double x:Key="Size.Stroke">0,7</sys:Double>
 
     <!-- ============ ТИПОГРАФИКА ============ -->
     <!-- SF Pro Text уже лежит в репозитории и подключён ресурсами. Прототип
